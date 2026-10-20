@@ -102,6 +102,8 @@ export interface IlacKurali {
   gecerlilik: { baslangic: string; bitis?: string };
   /** true ise kural doğrulanmamış örnek veridir; arayüzde belirtilir */
   ornek?: boolean;
+  /** Kuralı SUT metniyle karşılaştırıp onaylayan eczacı. Onaysız kural kontrolde kullanılmaz. */
+  onay?: { onaylayan: string; tarih: string };
   raporGerekli?: boolean;
   raporTuru?: RaporTuru;
   raporDuzenleyenBranslar?: string[];
@@ -137,6 +139,8 @@ export interface Bulgu {
   mesaj: string;
   kaynaklar: Kaynak[];
   barkod?: string;
+  /** Bulguya dayanak olan ilaç kuralının kimliği (denetim izi için) */
+  ilacKuraliId?: string;
   /** Bulgu örnek (doğrulanmamış) bir kurala dayanıyorsa true */
   ornekKural?: boolean;
 }

@@ -42,6 +42,7 @@ function bulgu(b: KalemBaglami, id: string, seviye: Bulgu['seviye'], mesaj: stri
     mesaj: `${b.kalem.ad}: ${mesaj}`,
     kaynaklar: [...kaynaklar(b), ...ek],
     barkod: b.kalem.barkod,
+    ilacKuraliId: b.kural?.id,
     ornekKural: b.kural?.ornek === true || undefined,
   };
 }

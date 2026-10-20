@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { ornekEk4a, ornekGecmis, ornekIlacKurallari, ornekReceteler, varsayilanAyarlar, type Recete } from '@scalpiq/sut-motoru';
 import { BellekDenetimDeposu } from '../src/denetim.js';
+import { BellekKuralDeposu } from '../src/kural-deposu.js';
 import { SahteMedula } from '../src/medula.js';
 import { uygulamaOlustur } from '../src/uygulama.js';
 
@@ -9,7 +10,7 @@ function kur() {
   const denetim = new BellekDenetimDeposu();
   const app = uygulamaOlustur({
     ek4a: ornekEk4a,
-    ilacKurallari: ornekIlacKurallari,
+    kurallar: new BellekKuralDeposu(ornekIlacKurallari),
     ayarlar: varsayilanAyarlar,
     medula,
     denetim,

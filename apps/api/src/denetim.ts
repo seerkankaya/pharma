@@ -10,7 +10,7 @@ export interface DenetimKaydi {
   zaman: string;
   receteNo: string;
   durum: Durum;
-  bulgular: Pick<Bulgu, 'kuralId' | 'seviye' | 'mesaj' | 'kaynaklar' | 'barkod'>[];
+  bulgular: Pick<Bulgu, 'kuralId' | 'seviye' | 'mesaj' | 'kaynaklar' | 'barkod' | 'ilacKuraliId'>[];
   gerekceler: Gerekceler;
   ek4aYayimTarihi: string;
   takipNo?: string;

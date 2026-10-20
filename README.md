@@ -20,8 +20,8 @@ Her uyarı dayandığı kaynağı gösterir: SUT maddesi, EK-4/A listesi, Resmî
 | --- | --- |
 | `packages/sut-motoru` | Kural motoru: veri modeli, kontrol kuralları, gönderim kilidi, örnek kurallar ve örnek reçeteler |
 | `packages/ek4a-aktarim` | SGK EK-4/A Excel dosyasını (xls/xlsx) okuyup barkodla aranabilir listeye çevirir |
-| `apps/api` | Fastify API: `/api/kontrol`, `/api/gonder`, `/api/denetim`. Medula şimdilik sahte istemciyle |
-| `apps/web` | React kontrol ekranı |
+| `apps/api` | Fastify API: `/api/kontrol`, `/api/gonder`, `/api/denetim`, `/api/kurallar`. Medula şimdilik sahte istemciyle |
+| `apps/web` | React ekranları: reçete kontrol, kural kitaplığı, denetim kaydı |
 
 ## Çalıştırma
 
@@ -60,10 +60,20 @@ npm run web         # Ekran: http://localhost:5173 (ayrı terminalde)
 
 Not: SGK'nın EK-4/A listesi bir ödeme ve fiyat listesidir; ilaçların rapor ve kullanım koşullarını içermez. Bu koşullar SUT metninden kural kitaplığına ayrıca kodlanır.
 
+## Kural kitaplığı
+
+Kurallar `data/kurallar.json` dosyasında tutulur (dosya yoksa örnek kurallarla başlar). Akış:
+
+1. Kural **taslak** olarak eklenir. Taslak kontrolde kullanılmaz.
+2. Eczacı kuralı SUT metniyle karşılaştırır ve adıyla **onaylar**. Aynı etken madde için aynı tarihlerde geçerli başka onaylı kural varsa onay reddedilir.
+3. SUT değişince eski kuralın **geçerliliği kapatılır**, yeni sürüm taslak olarak eklenip onaylanır.
+
+Onaylı kural düzenlenemez ve silinemez; her uyarı ve denetim kaydı dayandığı kuralın kimliğini (`ilacKuraliId`) taşır.
+Şu an onaylayan adı serbest metin; kullanıcı hesapları gelince oturumdaki eczacıdan alınacak.
+
 ## Sıradaki işler
 
 - Gerçek kural kitaplığı: en çok kesinti yenen ilaç gruplarından başlayarak SUT'tan kodlama
-- Kural kitaplığı için yönetim ekranı (uzman eczacı onayı, sürüm geçmişi)
 - Medula Eczane web servis istemcisi ve sabit IP geçidi
 - Reçete okuma (e-reçete sorgu) ve gerçek reçete girişi
 - Veritabanı (PostgreSQL), eczane hesapları ve yetkiler

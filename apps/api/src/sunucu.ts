@@ -1,12 +1,14 @@
 import { ornekEk4a, ornekGecmis, ornekIlacKurallari, ornekReceteler, varsayilanAyarlar } from '@scalpiq/sut-motoru';
 import { DosyaDenetimDeposu } from './denetim.js';
+import { DosyaKuralDeposu } from './kural-deposu.js';
 import { SahteMedula } from './medula.js';
 import { uygulamaOlustur } from './uygulama.js';
 
 // Şimdilik örnek EK-4/A ve örnek kural kitaplığı ile, Medula'ya gitmeden çalışır.
 const app = uygulamaOlustur({
   ek4a: ornekEk4a,
-  ilacKurallari: ornekIlacKurallari,
+  // Kural kitaplığı data/kurallar.json dosyasında; dosya yoksa örnek kurallarla başlar.
+  kurallar: new DosyaKuralDeposu(new URL('../../../data/kurallar.json', import.meta.url).pathname, ornekIlacKurallari),
   ayarlar: varsayilanAyarlar,
   medula: new SahteMedula(),
   denetim: new DosyaDenetimDeposu(new URL('../../../data/denetim.jsonl', import.meta.url).pathname),

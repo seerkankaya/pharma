@@ -1,5 +1,8 @@
 import { useEffect, useMemo, useState } from 'react';
 import { ASGARI_GEREKCE_UZUNLUGU, gerekceAnahtari, type Bulgu, type GecmisVerilis, type KontrolSonucu, type Recete } from '@scalpiq/sut-motoru';
+import { istek, IstekHatasi } from './api';
+import { DenetimKaydiSayfasi } from './DenetimKaydi';
+import { KuralKitapligi } from './KuralKitapligi';
 
 interface Ornek {
   baslik: string;
@@ -11,14 +14,31 @@ type Kontrol = KontrolSonucu & { kontrolId: string };
 
 const DURUM_ADI = { yesil: 'Uygun', sari: 'Dikkat', kirmizi: 'Uygun değil' } as const;
 
-async function istek<T>(url: string, govde?: unknown): Promise<T> {
-  const yanit = await fetch(url, govde === undefined ? undefined : { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(govde) });
-  const veri = await yanit.json();
-  if (!yanit.ok) throw Object.assign(new Error(veri.hata ?? 'İstek başarısız'), { engeller: veri.engeller as string[] | undefined });
-  return veri as T;
-}
+const SEKMELER = { kontrol: 'Reçete kontrol', kurallar: 'Kural kitaplığı', denetim: 'Denetim kaydı' } as const;
+type Sekme = keyof typeof SEKMELER;
 
 export function Uygulama() {
+  const [sekme, setSekme] = useState<Sekme>('kontrol');
+  return (
+    <div className="sayfa">
+      <header>
+        <h1>ScalpIQ</h1>
+        <div className="sekmeler">
+          {(Object.keys(SEKMELER) as Sekme[]).map((s) => (
+            <button key={s} className={s === sekme ? 'secili' : ''} onClick={() => setSekme(s)}>
+              {SEKMELER[s]}
+            </button>
+          ))}
+        </div>
+      </header>
+      {sekme === 'kontrol' && <ReceteKontrol />}
+      {sekme === 'kurallar' && <KuralKitapligi />}
+      {sekme === 'denetim' && <DenetimKaydiSayfasi />}
+    </div>
+  );
+}
+
+function ReceteKontrol() {
   const [ornekler, setOrnekler] = useState<Ornek[]>([]);
   const [secili, setSecili] = useState(0);
   const [kontrol, setKontrol] = useState<Kontrol>();
@@ -60,7 +80,7 @@ export function Uygulama() {
       const { takipNo } = await istek<{ takipNo: string }>('/api/gonder', { kontrolId: kontrol.kontrolId, gerekceler });
       setMesaj({ tur: 'basari', metin: `Reçete Medula'ya gönderildi. Takip no: ${takipNo}` });
     } catch (e) {
-      setMesaj({ tur: 'hata', metin: (e as Error).message, engeller: (e as { engeller?: string[] }).engeller });
+      setMesaj({ tur: 'hata', metin: (e as Error).message, engeller: e instanceof IstekHatasi ? e.engeller : undefined });
     } finally {
       setMesgul(false);
     }
@@ -75,12 +95,8 @@ export function Uygulama() {
   }, [kontrol, gerekceler]);
 
   return (
-    <div className="sayfa">
-      <header>
-        <h1>ScalpIQ Reçete Kontrol</h1>
-        <p className="soluk">Reçete Medula'ya gitmeden önce SUT'a göre kontrol edilir. Örnek kurallarla çalışıyor; gerçek SUT hükmü değildir.</p>
-      </header>
-
+    <>
+      <p className="soluk">Reçete Medula'ya gitmeden önce SUT'a göre kontrol edilir. "Örnek kural" etiketli uyarılar gerçek SUT hükmü değildir.</p>
       <div className="duzen">
         <nav>
           <h2>Örnek reçeteler</h2>
@@ -139,7 +155,7 @@ export function Uygulama() {
           )}
         </main>
       </div>
-    </div>
+    </>
   );
 }
 

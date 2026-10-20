@@ -1,22 +1,24 @@
 import { randomUUID } from 'node:crypto';
 import Fastify from 'fastify';
 import {
+  etkinKurallar,
   gonderimeIzinVarMi,
   kontrolEt,
   type Ek4aListesi,
   type GecmisVerilis,
   type Gerekceler,
-  type IlacKurali,
   type KontrolSonucu,
   type MotorAyarlari,
   type Recete,
 } from '@scalpiq/sut-motoru';
 import type { DenetimDeposu } from './denetim.js';
+import type { KuralDeposu } from './kural-deposu.js';
+import { kuralRotalari } from './kural-rotalari.js';
 import type { MedulaIstemcisi } from './medula.js';
 
 export interface Bagimliliklar {
   ek4a: Ek4aListesi;
-  ilacKurallari: IlacKurali[];
+  kurallar: KuralDeposu;
   ayarlar: MotorAyarlari;
   medula: MedulaIstemcisi;
   denetim: DenetimDeposu;
@@ -45,9 +47,10 @@ export function uygulamaOlustur(b: Bagimliliklar) {
     const { recete, gecmis } = req.body ?? {};
     if (!recete?.no || !Array.isArray(recete.kalemler)) return reply.code(400).send({ hata: 'Geçerli bir reçete gönderin' });
 
+    const ilacKurallari = etkinKurallar(await b.kurallar.listele());
     let sonuc: KontrolSonucu;
     try {
-      sonuc = kontrolEt({ recete, gecmis, bugun: b.bugun(), ek4a: b.ek4a, ilacKurallari: b.ilacKurallari, ayarlar: b.ayarlar });
+      sonuc = kontrolEt({ recete, gecmis, bugun: b.bugun(), ek4a: b.ek4a, ilacKurallari, ayarlar: b.ayarlar });
     } catch (e) {
       return reply.code(400).send({ hata: (e as Error).message });
     }
@@ -76,13 +79,15 @@ export function uygulamaOlustur(b: Bagimliliklar) {
       zaman: new Date().toISOString(),
       receteNo: k.recete.no,
       durum: k.sonuc.durum,
-      bulgular: k.sonuc.bulgular.map(({ kuralId, seviye, mesaj, kaynaklar, barkod }) => ({ kuralId, seviye, mesaj, kaynaklar, barkod })),
+      bulgular: k.sonuc.bulgular.map(({ kuralId, seviye, mesaj, kaynaklar, barkod, ilacKuraliId }) => ({ kuralId, seviye, mesaj, kaynaklar, barkod, ilacKuraliId })),
       gerekceler: kullanilanGerekceler,
       ek4aYayimTarihi: k.sonuc.ek4aYayimTarihi,
       takipNo: medula.takipNo,
     });
     return { takipNo: medula.takipNo };
   });
+
+  kuralRotalari(app, b.kurallar, b.bugun);
 
   app.get('/api/denetim', async () => (await b.denetim.listele()).reverse());
 

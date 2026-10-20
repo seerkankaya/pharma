@@ -5,3 +5,5 @@ export { kalemKurallari, receteKurallari } from './kurallar/index.js';
 export { ornekIlacKurallari, varsayilanAyarlar } from './kurallar/ornek-kurallar.js';
 export { haritaListesi } from './ek4a-bellek.js';
 export { ornekEk4a, ornekReceteler, ornekGecmis } from './ornekler.js';
+export { kuralDogrula, etkinKurallar, cakisanKural } from './kural-dogrulama.js';
+export { gunEkle, gunFarki } from './tarih.js';

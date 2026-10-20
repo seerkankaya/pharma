@@ -74,3 +74,24 @@ textarea { width: 100%; min-height: 56px; margin-top: 6px; border: 1px solid var
 .mesaj { border-radius: 8px; padding: 12px 14px; }
 .mesaj.basari { background: var(--yesil-zemin); }
 .mesaj.hata { background: var(--kirmizi-zemin); }
+
+header { display: flex; justify-content: space-between; align-items: center; gap: 16px; flex-wrap: wrap; margin-bottom: 8px; }
+.sekmeler { display: flex; gap: 4px; background: var(--kart); border: 1px solid var(--cizgi); border-radius: 10px; padding: 4px; }
+.sekmeler button { border: 0; background: none; color: inherit; font: inherit; padding: 6px 14px; border-radius: 7px; cursor: pointer; }
+.sekmeler button.secili { background: var(--vurgu); color: #fff; }
+
+.form fieldset { border: 1px solid var(--cizgi); border-radius: 8px; margin: 0 0 12px; padding: 12px; display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 10px 16px; }
+.form legend { font-weight: 600; padding: 0 6px; }
+.form label { display: flex; flex-direction: column; gap: 4px; font-size: 13px; color: var(--soluk); }
+.form label.genis { grid-column: 1 / -1; }
+.form label.kutu { flex-direction: row; align-items: center; gap: 8px; color: var(--yazi); }
+.form input, .form select { font: inherit; padding: 7px 9px; border: 1px solid var(--cizgi); border-radius: 6px; background: var(--kart); color: var(--yazi); }
+
+.etiket { font-size: 12px; font-weight: 600; padding: 2px 8px; border-radius: 999px; border: 1px solid; white-space: nowrap; }
+.etiket.onayli { color: var(--yesil); }
+.etiket.taslak { color: var(--sari); }
+.etiket.kapali, .etiket.ornek { color: var(--soluk); }
+td code { font-size: 12px; color: var(--soluk); }
+td { vertical-align: top; }
+.satir-eylem { white-space: nowrap; }
+.satir-eylem button { font: inherit; font-size: 13px; padding: 4px 10px; margin: 0 4px 4px 0; border: 1px solid var(--cizgi); border-radius: 6px; background: var(--kart); color: inherit; cursor: pointer; }
