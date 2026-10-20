@@ -32,6 +32,8 @@ export interface StokDeposu {
    * İşlem hata fırlatırsa hiçbir şey yazılmaz.
    */
   islem<T>(eczaneId: string, barkodlar: string[], f: (partiler: Map<string, Parti[]>) => StokYazimi<T>): Promise<T>;
+  /** Tüm stok giriş hareketleri; parti maliyetleri buradan hesaplanır. */
+  girisler(eczaneId: string): Promise<StokHareketi[]>;
   /** [baslangic, bitis) aralığındaki satışlar, en yenisi önce. */
   satislar(eczaneId: string, baslangic: Date, bitis: Date): Promise<Satis[]>;
   tedarikciler(eczaneId: string): Promise<Tedarikci[]>;
@@ -87,6 +89,10 @@ export class BellekStokDeposu implements StokDeposu {
     });
     this.sira = sonuc.catch(() => undefined);
     return sonuc;
+  }
+
+  async girisler(eczaneId: string) {
+    return this.hareketler.filter((h) => h.eczaneId === eczaneId && h.tur === 'giris').map(({ eczaneId: _e, ...h }) => ({ ...h }));
   }
 
   async satislar(eczaneId: string, baslangic: Date, bitis: Date) {

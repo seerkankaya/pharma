@@ -6,6 +6,7 @@ import { gocleriUygula, havuzOlustur } from './vt/baglanti.js';
 import { PgHesapDeposu, PgKontrolDeposu, PgKuralDeposu } from './vt/pg-depolar.js';
 import { PgCariDeposu } from './vt/pg-cari-deposu.js';
 import { PgStokDeposu } from './vt/pg-stok-deposu.js';
+import { PgGunSonuDeposu } from './vt/pg-gun-sonu-deposu.js';
 
 // Veritabanı adresi DATABASE_URL ile verilir; yoksa docker-compose.yml'deki yerel PostgreSQL kullanılır.
 const havuz = havuzOlustur(process.env.DATABASE_URL ?? 'postgres://scalpiq:scalpiq@127.0.0.1:5432/scalpiq');
@@ -24,6 +25,7 @@ const app = uygulamaOlustur({
   hesaplar: new PgHesapDeposu(havuz),
   stok: new PgStokDeposu(havuz),
   cari: new PgCariDeposu(havuz),
+  gunSonu: new PgGunSonuDeposu(havuz),
   ayarlar: varsayilanAyarlar,
   medula: new SahteMedula(),
   guvenliCerez: process.env.NODE_ENV === 'production',

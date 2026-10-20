@@ -71,6 +71,14 @@ export class PgCariDeposu implements CariDeposu {
     return rows.map((r) => temizle({ ...r, zaman: new Date(r.zaman).toISOString() }));
   }
 
+  async tahsilatlar(eczaneId: string, baslangic: Date, bitis: Date) {
+    const { rows } = await this.havuz.query<CariHareket & { zaman: Date }>(
+      `select ${HAREKET_ALANLARI} from cari_hareket where eczane_id = $1 and tur = 'tahsilat' and zaman >= $2 and zaman < $3 order by sira`,
+      [eczaneId, baslangic, bitis],
+    );
+    return rows.map((r) => temizle({ ...r, zaman: new Date(r.zaman).toISOString() }));
+  }
+
   tahsilat(eczaneId: string, h: CariHareket) {
     return islemIcinde(this.havuz, async (c) => {
       const once = await kilitliBakiye(c, eczaneId, h.musteriId);
