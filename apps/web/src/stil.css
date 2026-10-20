@@ -340,3 +340,47 @@ td.alacak { color: var(--yesil); font-weight: 600; white-space: nowrap; }
 .kart .form { margin-top: 20px; padding-top: 16px; border-top: 1px solid var(--cizgi); }
 .eylemler.veresiye { padding-top: 12px; border-top: 1px dashed var(--cizgi); }
 .eylemler.veresiye select { min-width: 260px; }
+
+/* ---------- Gün sonu ve raporlar ---------- */
+.bolumler {
+  display: inline-flex; gap: 4px; padding: 4px; margin-bottom: 16px;
+  background: var(--kart); border: 1px solid var(--cizgi); border-radius: 12px; box-shadow: var(--golge);
+  max-width: 100%; overflow-x: auto;
+}
+.bolumler button {
+  border: 0; background: transparent; color: var(--soluk); font-weight: 550; padding: 8px 14px;
+  border-radius: 9px; cursor: pointer; white-space: nowrap;
+}
+.bolumler button:hover { color: var(--yazi); }
+.bolumler button.secili { background: var(--vurgu-zemin); color: var(--vurgu-koyu); }
+:root[data-tema='koyu'] .bolumler button.secili { color: var(--vurgu); }
+.dar-kart { max-width: 560px; }
+.gun-secici input[type='date'] { width: 170px; }
+.gun-secici button { min-width: 38px; }
+.mesaj.uyari { background: var(--sari-zemin); border-color: var(--sari-cizgi); margin: 14px 0 0; }
+.kirmizi-yazi { color: var(--kirmizi); }
+.dagilim { display: flex; flex-direction: column; gap: 2px; font-weight: 600; margin-top: 2px; }
+th.sayi, td.sayi { text-align: right; white-space: nowrap; font-variant-numeric: tabular-nums; }
+h2.ara-baslik { margin-top: 22px; }
+h2 .rozet { margin-left: auto; }
+
+dl.degerler { display: grid; grid-template-columns: 1fr auto; gap: 8px 16px; margin: 4px 0 0; }
+dl.degerler dt { color: var(--soluk); }
+dl.degerler dd { margin: 0; text-align: right; font-variant-numeric: tabular-nums; }
+
+.kapanis { margin-top: 16px; padding-top: 16px; border-top: 1px solid var(--cizgi); }
+.kapanis-fark { font-size: 18px; font-weight: 700; margin-bottom: 12px; }
+.kapanis-fark.yesil { color: var(--yesil); }
+.kapanis-fark.kirmizi { color: var(--kirmizi); }
+.kapanis-fark.sari { color: var(--sari); }
+.kapanis-formu { padding-top: 16px; margin-top: 16px; border-top: 1px dashed var(--cizgi); align-items: flex-end; }
+.kapanis-formu label { display: flex; flex-direction: column; gap: 6px; font-size: 12.5px; font-weight: 500; color: var(--soluk); }
+.kapanis-formu label.genis { flex: 1; min-width: 220px; }
+
+.cubuk-satir { display: flex; align-items: center; gap: 8px; min-width: 140px; }
+.cubuk { height: 8px; border-radius: 4px; background: var(--vurgu); min-width: 2px; flex-shrink: 0; }
+table.gunluk td { padding-top: 7px; padding-bottom: 7px; }
+@media (max-width: 900px) {
+  /* Geniş tablolar dar ekranda kartın içinde yana kayar, sayfayı taşırmaz. */
+  .sayfa-icerik .kart { overflow-x: auto; }
+}

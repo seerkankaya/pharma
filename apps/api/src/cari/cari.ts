@@ -61,6 +61,8 @@ export interface CariDeposu {
   musteriEkle(eczaneId: string, m: Omit<Musteri, 'id'>): Promise<Musteri>;
   /** Müşterinin hareketleri, en yenisi önce. */
   hareketler(eczaneId: string, musteriId: string): Promise<CariHareket[]>;
+  /** [baslangic, bitis) aralığındaki tahsilatlar (kasa kapanışı için). */
+  tahsilatlar(eczaneId: string, baslangic: Date, bitis: Date): Promise<CariHareket[]>;
   /** Borçtan fazla tahsilat yapılamaz; kontrol ve yazım aynı kilit altında yürür. */
   tahsilat(eczaneId: string, h: CariHareket): Promise<number>;
 }
@@ -108,6 +110,12 @@ export class BellekCariDeposu implements CariDeposu {
       .filter((h) => h.eczaneId === eczaneId && h.musteriId === musteriId)
       .map(({ eczaneId: _e, ...h }) => h)
       .reverse();
+  }
+
+  async tahsilatlar(eczaneId: string, baslangic: Date, bitis: Date) {
+    return this.defter.hareketler
+      .filter((h) => h.eczaneId === eczaneId && h.tur === 'tahsilat' && new Date(h.zaman) >= baslangic && new Date(h.zaman) < bitis)
+      .map(({ eczaneId: _e, ...h }) => h);
   }
 
   async tahsilat(eczaneId: string, h: CariHareket) {

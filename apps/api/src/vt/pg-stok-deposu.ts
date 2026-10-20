@@ -86,6 +86,16 @@ export class PgStokDeposu implements StokDeposu {
     );
   }
 
+  async girisler(eczaneId: string) {
+    const { rows } = await this.havuz.query<StokHareketi>(
+      `select barkod, 'giris' as tur, ${HAREKET_ALANLARI}, birim_maliyet_kurus as "birimMaliyetKurus", kullanici_id as "kullaniciId",
+              to_char(zaman at time zone 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS.MS"Z"') as zaman
+         from stok_hareketi where eczane_id = $1 and tur = 'giris'`,
+      [eczaneId],
+    );
+    return rows.map(({ birimMaliyetKurus, ...h }) => (birimMaliyetKurus === null ? h : { ...h, birimMaliyetKurus }));
+  }
+
   async satislar(eczaneId: string, baslangic: Date, bitis: Date) {
     const { rows } = await this.havuz.query<{ veri: Satis }>(
       'select veri from satis where eczane_id = $1 and zaman >= $2 and zaman < $3 order by zaman desc',

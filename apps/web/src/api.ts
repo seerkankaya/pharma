@@ -3,6 +3,8 @@ export class IstekHatasi extends Error {
     mesaj: string,
     readonly engeller?: string[],
     readonly hatalar?: string[],
+    /** Sunucunun hata yanıtının tamamı (ek alanlar için) */
+    readonly govde?: unknown,
   ) {
     super(mesaj);
   }
@@ -19,6 +21,6 @@ export async function istek<T>(url: string, govde?: unknown, method = govde === 
   });
   const veri = yanit.status === 204 ? undefined : await yanit.json();
   if (yanit.status === 401 && url !== '/api/giris') window.dispatchEvent(new Event(OTURUM_DUSTU));
-  if (!yanit.ok) throw new IstekHatasi(veri?.hata ?? 'İstek başarısız', veri?.engeller, veri?.hatalar);
+  if (!yanit.ok) throw new IstekHatasi(veri?.hata ?? 'İstek başarısız', veri?.engeller, veri?.hatalar, veri);
   return veri as T;
 }

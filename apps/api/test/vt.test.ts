@@ -11,6 +11,8 @@ import type { AlisFaturasi } from '../src/alis/alis.js';
 import { PgCariDeposu } from '../src/vt/pg-cari-deposu.js';
 import { CariHatasi } from '../src/cari/cari.js';
 import { StokHatasi, type StokHareketi } from '../src/stok/stok.js';
+import { PgGunSonuDeposu } from '../src/vt/pg-gun-sonu-deposu.js';
+import { GunZatenKapaliHatasi, type GunSonu } from '../src/rapor/rapor.js';
 
 // PostgreSQL depolarının testleri. Yalnızca TEST_DATABASE_URL verildiğinde çalışır;
 // veritabanındaki her şeyi siler, bu yüzden yalnızca test için açılmış bir veritabanı verin.
@@ -22,7 +24,7 @@ describe.skipIf(!adres)('PostgreSQL depoları', () => {
   beforeAll(async () => {
     havuz = havuzOlustur(adres!);
     await havuz.query('drop schema public cascade; create schema public;');
-    expect(await gocleriUygula(havuz)).toEqual(['001_ilk.sql', '002_stok.sql', '003_alis.sql', '004_cari.sql']);
+    expect(await gocleriUygula(havuz)).toEqual(['001_ilk.sql', '002_stok.sql', '003_alis.sql', '004_cari.sql', '005_gun_sonu.sql']);
   });
   afterAll(() => havuz?.end());
 
@@ -227,5 +229,36 @@ describe.skipIf(!adres)('PostgreSQL depoları', () => {
     expect(await tahsil(600)).toBe(0);
     expect((await cari.hareketler(e.id, m.id)).map((h) => h.tur)).toEqual(['tahsilat', 'borc']);
     await expect(havuz.query('delete from cari_hareket')).rejects.toThrow('değiştirilemez');
+
+    const gun = new Date(Date.now() - 60_000);
+    expect((await cari.tahsilatlar(e.id, gun, new Date(Date.now() + 60_000))).map((h) => h.tutarKurus)).toEqual([600]);
+    expect(await cari.tahsilatlar(e.id, new Date(0), gun)).toEqual([]);
+  });
+
+  it('raporlar: giriş maliyetleri ve bir kez kapanan, değişmeyen gün sonu', async () => {
+    const { e, k } = await eczaneVeKullanici();
+    const stok = new PgStokDeposu(havuz);
+    const zaman = new Date().toISOString();
+    const giris = (partiNo: string, birimMaliyetKurus?: number): StokHareketi => ({
+      barkod: '8690000000003', tur: 'giris', miktar: 4, partiNo, skt: '2027-03-31', birimMaliyetKurus, kullaniciId: k.id, zaman,
+    });
+    await stok.islem(e.id, ['8690000000003'], () => ({ sonuc: null, hareketler: [giris('A', 250), giris('B')] }));
+    expect((await stok.girisler(e.id)).sort((a, b) => a.partiNo.localeCompare(b.partiNo))).toEqual([
+      { ...giris('A', 250) },
+      (({ birimMaliyetKurus: _b, ...g }) => g)(giris('B')),
+    ]);
+
+    const depo = new PgGunSonuDeposu(havuz);
+    const g: GunSonu = {
+      gun: '2026-10-20', zaman, kullaniciId: k.id, kapatan: 'X', satisAdedi: 0, ciroKurus: 0, veresiyeKurus: 0,
+      kasa: { nakitSatisKurus: 0, nakitTahsilatKurus: 0, kartSatisKurus: 0, kartTahsilatKurus: 0, beklenenNakitKurus: 0, beklenenKartKurus: 0 },
+      sayilanNakitKurus: 0, farkKurus: 0,
+    };
+    await depo.kapat(e.id, g);
+    await expect(depo.kapat(e.id, g)).rejects.toBeInstanceOf(GunZatenKapaliHatasi);
+    expect(await depo.al(e.id, '2026-10-20')).toEqual(g);
+    expect(await depo.al(e.id, '2026-10-21')).toBeUndefined();
+    expect(await depo.liste(e.id, 10)).toEqual([g]);
+    await expect(havuz.query('update gun_sonu set fark_kurus = 5')).rejects.toThrow('değiştirilemez');
   });
 });

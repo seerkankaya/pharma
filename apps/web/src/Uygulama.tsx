@@ -4,6 +4,7 @@ import { istek, IstekHatasi, OTURUM_DUSTU } from './api';
 import { Alis } from './Alis';
 import { DenetimKaydiSayfasi } from './DenetimKaydi';
 import { Giris } from './Giris';
+import { GunSonu } from './GunSonu';
 import { Kabuk, type Sayfa } from './Kabuk';
 import { KuralKitapligi } from './KuralKitapligi';
 import { Kullanicilar } from './Kullanicilar';
@@ -31,7 +32,7 @@ type Kontrol = KontrolSonucu & { kontrolId: string };
 
 const DURUM_ADI = { yesil: 'Uygun', sari: 'Dikkat', kirmizi: 'Uygun değil' } as const;
 
-type Sekme = 'kontrol' | 'satis' | 'stok' | 'alis' | 'musteriler' | 'kurallar' | 'denetim' | 'kullanicilar';
+type Sekme = 'kontrol' | 'satis' | 'stok' | 'alis' | 'musteriler' | 'gunsonu' | 'kurallar' | 'denetim' | 'kullanicilar';
 
 const SAYFALAR: Sayfa<Sekme>[] = [
   { id: 'kontrol', ad: 'Reçete kontrol', ikon: 'recete', aciklama: "Reçete açılınca SUT'a göre kendiliğinden kontrol edilir; uygun değilse Medula'ya gönderilemez." },
@@ -39,6 +40,7 @@ const SAYFALAR: Sayfa<Sekme>[] = [
   { id: 'stok', ad: 'Stok', ikon: 'stok', aciklama: 'Ürün kartları, partiler, son kullanma tarihleri ve stok uyarıları.' },
   { id: 'alis', ad: 'Alış ve sipariş', ikon: 'alis', aciklama: 'Ecza deposu faturaları stoğa parti olarak girer; kritik stoğa inen ürünler için sipariş önerisi.' },
   { id: 'musteriler', ad: 'Müşteriler ve veresiye', ikon: 'musteriler', aciklama: 'Veresiye hesapları: borç, tahsilat ve hesap dökümü.' },
+  { id: 'gunsonu', ad: 'Gün sonu ve raporlar', ikon: 'rapor', aciklama: 'Kasa kapanışı, ciro, KDV ve kâr; stok değeri ve miadı yaklaşan partiler.' },
   { id: 'kurallar', ad: 'Kural kitaplığı', ikon: 'kurallar', aciklama: 'SUT ödeme koşulları. Kontrolde yalnızca onaylı kurallar kullanılır.' },
   { id: 'denetim', ad: 'Denetim kaydı', ikon: 'denetim', aciklama: "Medula'ya gönderilen her reçetenin kontrol izi; SGK itirazında kanıtınız." },
   { id: 'kullanicilar', ad: 'Kullanıcılar', ikon: 'kullanicilar', aciklama: 'Eczanenizde çalışanların hesapları.' },
@@ -93,6 +95,7 @@ export function Uygulama() {
       {gorunen === 'stok' && <Stok eczaci={oturum.rol === 'eczaci'} />}
       {gorunen === 'alis' && <Alis eczaci={oturum.rol === 'eczaci'} />}
       {gorunen === 'musteriler' && <Musteriler eczaci={oturum.rol === 'eczaci'} />}
+      {gorunen === 'gunsonu' && <GunSonu eczaci={oturum.rol === 'eczaci'} />}
       {gorunen === 'kurallar' && <KuralKitapligi duzenleyebilir={oturum.kuralYetkisi} />}
       {gorunen === 'denetim' && <DenetimKaydiSayfasi />}
       {gorunen === 'kullanicilar' && <Kullanicilar benimId={oturum.id} />}

@@ -23,6 +23,8 @@ import { stokRotalari } from './stok/stok-rotalari.js';
 import { alisRotalari } from './alis/alis-rotalari.js';
 import type { CariDeposu } from './cari/cari.js';
 import { cariRotalari } from './cari/cari-rotalari.js';
+import type { GunSonuDeposu } from './rapor/rapor.js';
+import { raporRotalari } from './rapor/rapor-rotalari.js';
 
 export interface Bagimliliklar {
   ek4a: Ek4aListesi;
@@ -31,6 +33,7 @@ export interface Bagimliliklar {
   hesaplar: HesapDeposu;
   stok: StokDeposu;
   cari: CariDeposu;
+  gunSonu: GunSonuDeposu;
   ayarlar: MotorAyarlari;
   medula: MedulaIstemcisi;
   /** Kontrol gününü verir (testlerde sabitlenir) */
@@ -116,6 +119,7 @@ export function uygulamaOlustur(b: Bagimliliklar) {
   stokRotalari(app, b.stok, b.cari, b.ek4a, b.bugun);
   cariRotalari(app, b.cari);
   alisRotalari(app, b.stok, b.ek4a, b.bugun);
+  raporRotalari(app, b.stok, b.cari, b.gunSonu, b.bugun);
 
   app.get('/api/denetim', async (req) => b.kontroller.denetimKayitlari(req.kullanici!.eczaneId));
 

@@ -5,6 +5,7 @@ import { BellekKuralDeposu } from '../src/kural-deposu.js';
 import { SahteMedula } from '../src/medula.js';
 import { BellekStokDeposu } from '../src/stok/stok-deposu.js';
 import { BellekCariDeposu } from '../src/cari/cari.js';
+import { BellekGunSonuDeposu } from '../src/rapor/rapor.js';
 import { uygulamaOlustur } from '../src/uygulama.js';
 
 export const PAROLA = 'cok-gizli-parola';
@@ -51,6 +52,7 @@ export async function kur(kurallar: IlacKurali[] = []) {
     hesaplar,
     stok,
     cari,
+    gunSonu: new BellekGunSonuDeposu(),
     ayarlar: varsayilanAyarlar,
     medula,
     bugun: () => '2026-10-20',

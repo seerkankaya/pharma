@@ -135,6 +135,20 @@ Uygulamadaki kuralların bir kopyası veritabanında da tetikleyici olarak durur
 
 Reçeteli satış (hasta katılım payı, reçete ilaçlarının stoktan düşülmesi) Medula bağlantısıyla birlikte gelecek.
 
+## Gün sonu ve raporlar
+
+![Gün sonu ekranı](docs/gunsonu-ekrani.png)
+
+- **Kasa kapanışı:** Sunucu, kasada olması gereken nakdi nakit satış ve nakit tahsilattan hesaplar. Kapatan kişi çekmecedeki nakdi sayıp girer.
+  - Çalışan beklenen tutarı sayımdan önce görmez (kör sayım). Sonucu kapanıştan sonra görür.
+  - Fark varsa açıklama yazılmadan gün kapanmaz.
+  - Bir gün bir kez kapanır. Kapanış kaydı veritabanında değiştirilemez ve silinemez.
+  - Kapanıştan sonra satış ya da tahsilat yapılırsa rapor bunu ayrıca gösterir.
+- **Gün ve dönem raporu:** Ciro, ödeme türü dağılımı, KDV oranlarına göre matrah ve KDV, brüt kâr, en çok satan ürünler, günlük ciro.
+  - Brüt kâr, satılan partinin stoğa giriş maliyetinden hesaplanır (KDV hariç). Maliyeti girilmemiş kutular kâra katılmaz ve ayrıca sayılır.
+- **Stok değeri ve miat:** Eldeki stoğun maliyeti ve raf değeri, miadı 90 gün içinde dolan ve geçmiş partiler.
+- Raporları yalnızca eczacı görür; çalışan yalnızca kasa sayımı ekranını görür.
+
 ## Kural kitaplığı
 
 Kurallar tüm eczanelerde ortaktır ve veritabanında tutulur. Kitaplık boşsa örnek kurallarla başlar. Akış:
@@ -151,4 +165,4 @@ Onaylı kural düzenlenemez ve silinemez; her uyarı ve denetim kaydı dayandı�
 - Medula Eczane web servis istemcisi ve sabit IP geçidi
 - Reçete okuma (e-reçete sorgu) ve gerçek reçete girişi
 - Parola değiştirme ve sıfırlama, iki adımlı doğrulama
-- Ürün planındaki diğer modüller: satış, stok, İTS, e-Fatura, yazar kasa…
+- İTS bildirimleri, e-Fatura/e-Arşiv ve ÖKC (yazar kasa) bağlantısı: resmi teknik belgeler bekleniyor

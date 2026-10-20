@@ -72,6 +72,12 @@ export class StokHatasi extends Error {}
 /** Verilen anın Türkiye saatine göre tarihi (YYYY-AA-GG). Gece yarısından sonra UTC tarihi bir gün geride kalır. */
 export const turkiyeGunu = (an: Date) => new Intl.DateTimeFormat('en-CA', { timeZone: 'Europe/Istanbul' }).format(an);
 
+/** Türkiye saatine göre bir günün [başlangıç, bitiş) aralığı. Türkiye 2016'dan beri yaz saati uygulamaz, fark hep +03:00. */
+export function gunAraligi(gun: string) {
+  const baslangic = new Date(`${gun}T00:00:00+03:00`);
+  return { baslangic, bitis: new Date(baslangic.getTime() + 86_400_000) };
+}
+
 /** Hareketlerden ürünün elde kalan partilerini, son kullanma tarihine göre sıralı verir. */
 export function partiler(hareketler: Pick<StokHareketi, 'partiNo' | 'skt' | 'miktar'>[]): Parti[] {
   const m = new Map<string, Parti>();

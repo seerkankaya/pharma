@@ -4,6 +4,7 @@ import type { Ek4aListesi } from '@scalpiq/sut-motoru';
 import type { CariBorc, CariDeposu } from '../cari/cari.js';
 import { eczaciGerekli } from '../oturum.js';
 import {
+  gunAraligi,
   satisHazirla,
   satisIstegiDogrula,
   StokHatasi,
@@ -18,12 +19,6 @@ import {
 import type { StokDeposu } from './stok-deposu.js';
 
 const TARIH = /^\d{4}-\d{2}-\d{2}$/;
-
-/** Türkiye saatine göre bir günün [başlangıç, bitiş) aralığı. */
-function gunAraligi(gun: string) {
-  const baslangic = new Date(`${gun}T00:00:00+03:00`);
-  return { baslangic, bitis: new Date(baslangic.getTime() + 86_400_000) };
-}
 
 export function stokRotalari(app: FastifyInstance, depo: StokDeposu, cari: CariDeposu, ek4a: Ek4aListesi, bugun: () => string) {
   app.get('/api/urunler', async (req) => depo.urunler(req.kullanici!.eczaneId));
