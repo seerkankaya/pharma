@@ -20,19 +20,28 @@ Her uyarı dayandığı kaynağı gösterir: SUT maddesi, EK-4/A listesi, Resmî
 | --- | --- |
 | `packages/sut-motoru` | Kural motoru: veri modeli, kontrol kuralları, gönderim kilidi, örnek kurallar ve örnek reçeteler |
 | `packages/ek4a-aktarim` | SGK EK-4/A Excel dosyasını (xls/xlsx) okuyup barkodla aranabilir listeye çevirir |
-| `apps/api` | Fastify API: `/api/kontrol`, `/api/gonder`, `/api/denetim`, `/api/kurallar`. Medula şimdilik sahte istemciyle |
-| `apps/web` | React ekranları: reçete kontrol, kural kitaplığı, denetim kaydı |
+| `apps/api` | Fastify API: oturum, kontrol, gönderim, denetim, kural kitaplığı, kullanıcılar. PostgreSQL'de saklar. Medula şimdilik sahte istemciyle |
+| `apps/api/src/vt/gocler` | Veritabanı şeması. Sunucu açılırken uygulanmamış dosyaları sırayla uygular |
+| `apps/web` | React ekranları: giriş, reçete kontrol, kural kitaplığı, denetim kaydı, kullanıcılar |
 
 ## Çalıştırma
 
-Node.js 22 gerekir.
+Node.js 22 ve PostgreSQL 16 gerekir. PostgreSQL için en kolayı Docker:
 
 ```bash
 npm install
-npm test            # tüm testler
+docker compose up -d   # yerel PostgreSQL (scalpiq ve scalpiq_test veritabanları)
+npm run kurulum -- --eczane "Kaya Eczanesi" --eposta serkan@ornek.com --ad "Ecz. Serkan Kaya" --kural-yetkisi
+npm run api            # API: http://127.0.0.1:3001
+npm run web            # Ekran: http://localhost:5173 (ayrı terminalde)
+```
+
+`kurulum` eczane hesabını ve ilk eczacıyı açar, parolayı bir kez ekrana yazar. Başka bir veritabanı için `DATABASE_URL` verin.
+
+```bash
+npm test            # testler (veritabanı gerekmez)
+npm run test:vt     # PostgreSQL testleri (scalpiq_test veritabanının içini siler)
 npm run typecheck   # tip kontrolü
-npm run api         # API: http://127.0.0.1:3001
-npm run web         # Ekran: http://localhost:5173 (ayrı terminalde)
 ```
 
 Örnek reçeteler 20.10.2026 tarihlidir. Başka bir günde denerken API'yi `SCALPIQ_BUGUN=2026-10-20 npm run api` ile başlatın.
@@ -60,21 +69,44 @@ npm run web         # Ekran: http://localhost:5173 (ayrı terminalde)
 
 Not: SGK'nın EK-4/A listesi bir ödeme ve fiyat listesidir; ilaçların rapor ve kullanım koşullarını içermez. Bu koşullar SUT metninden kural kitaplığına ayrıca kodlanır.
 
+## Hesaplar ve yetkiler
+
+Her eczane ayrı bir hesaptır. Kullanıcılar yalnızca kendi eczanelerinin kontrollerini ve denetim kaydını görür.
+
+| Yetki | Ne yapabilir |
+| --- | --- |
+| Çalışan | Reçete kontrol eder, gönderir, denetim kaydını ve kural kitaplığını görür |
+| Eczacı | Çalışanın yaptıkları, ayrıca eczanesine kullanıcı ekler ve kapatır |
+| Kural yetkisi | Eczane rolünden ayrı. Ortak kural kitaplığına kural ekler, onaylar, kapatır. Yalnızca `kurulum` ile verilir |
+
+- Parolalar scrypt ile özetlenir. Oturum çerezi HttpOnly ve SameSite=Strict'tir, canlıda (`NODE_ENV=production`) yalnızca HTTPS ile gönderilir. Veritabanında oturum belirtecinin yalnızca özeti tutulur.
+- Aynı e-postayla 5 hatalı girişten sonra hesap 15 dakika kilitlenir.
+- Kapatılan kullanıcının açık oturumları hemen düşer.
+- Gönderen kişinin adı denetim kaydına yazılır.
+
+## Veritabanı güvenceleri
+
+Uygulamadaki kuralların bir kopyası veritabanında da tetikleyici olarak durur. Böylece koddaki bir hata bunları delemez:
+
+- Denetim kaydı değiştirilemez, silinemez ve boşaltılamaz.
+- Onaylı kural silinemez. Değiştirilebilecek tek alanı, bir kez olmak üzere geçerlilik bitişidir.
+- Bir kontrol yalnızca bir kez gönderilir. Aynı anda gelen iki gönderim isteğinden yalnızca biri Medula'ya gider.
+- Gönderimin tamamlanması ve denetim kaydı aynı veritabanı işleminde yazılır.
+
 ## Kural kitaplığı
 
-Kurallar `data/kurallar.json` dosyasında tutulur (dosya yoksa örnek kurallarla başlar). Akış:
+Kurallar tüm eczanelerde ortaktır ve veritabanında tutulur. Kitaplık boşsa örnek kurallarla başlar. Akış:
 
 1. Kural **taslak** olarak eklenir. Taslak kontrolde kullanılmaz.
-2. Eczacı kuralı SUT metniyle karşılaştırır ve adıyla **onaylar**. Aynı etken madde için aynı tarihlerde geçerli başka onaylı kural varsa onay reddedilir.
+2. Kural yetkisi olan eczacı kuralı SUT metniyle karşılaştırır ve **onaylar**. Onaylayanın adı oturumdan alınır. Aynı etken madde için aynı tarihlerde geçerli başka onaylı kural varsa onay reddedilir.
 3. SUT değişince eski kuralın **geçerliliği kapatılır**, yeni sürüm taslak olarak eklenip onaylanır.
 
 Onaylı kural düzenlenemez ve silinemez; her uyarı ve denetim kaydı dayandığı kuralın kimliğini (`ilacKuraliId`) taşır.
-Şu an onaylayan adı serbest metin; kullanıcı hesapları gelince oturumdaki eczacıdan alınacak.
 
 ## Sıradaki işler
 
 - Gerçek kural kitaplığı: en çok kesinti yenen ilaç gruplarından başlayarak SUT'tan kodlama
 - Medula Eczane web servis istemcisi ve sabit IP geçidi
 - Reçete okuma (e-reçete sorgu) ve gerçek reçete girişi
-- Veritabanı (PostgreSQL), eczane hesapları ve yetkiler
+- Parola değiştirme ve sıfırlama, iki adımlı doğrulama
 - Ürün planındaki diğer modüller: satış, stok, İTS, e-Fatura, yazar kasa…

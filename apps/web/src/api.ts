@@ -8,6 +8,9 @@ export class IstekHatasi extends Error {
   }
 }
 
+/** Oturum düştüğünde (401) uygulama giriş ekranına döner. */
+export const OTURUM_DUSTU = 'scalpiq:oturum-dustu';
+
 export async function istek<T>(url: string, govde?: unknown, method = govde === undefined ? 'GET' : 'POST'): Promise<T> {
   const yanit = await fetch(url, {
     method,
@@ -15,6 +18,7 @@ export async function istek<T>(url: string, govde?: unknown, method = govde === 
     body: govde === undefined ? undefined : JSON.stringify(govde),
   });
   const veri = yanit.status === 204 ? undefined : await yanit.json();
+  if (yanit.status === 401 && url !== '/api/giris') window.dispatchEvent(new Event(OTURUM_DUSTU));
   if (!yanit.ok) throw new IstekHatasi(veri?.hata ?? 'İstek başarısız', veri?.engeller, veri?.hatalar);
   return veri as T;
 }

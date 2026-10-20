@@ -5,13 +5,16 @@
   "type": "module",
   "scripts": {
     "dev": "tsx watch src/sunucu.ts",
-    "start": "tsx src/sunucu.ts"
+    "start": "tsx src/sunucu.ts",
+    "kurulum": "tsx src/kurulum.ts"
   },
   "dependencies": {
     "@scalpiq/sut-motoru": "0.1.0",
-    "fastify": "5.2.0"
+    "fastify": "5.2.0",
+    "pg": "8.13.3"
   },
   "devDependencies": {
+    "@types/pg": "8.11.15",
     "tsx": "4.19.2"
   }
 }

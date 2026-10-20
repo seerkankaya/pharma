@@ -1,8 +1,20 @@
 import { useEffect, useMemo, useState } from 'react';
 import { ASGARI_GEREKCE_UZUNLUGU, gerekceAnahtari, type Bulgu, type GecmisVerilis, type KontrolSonucu, type Recete } from '@scalpiq/sut-motoru';
-import { istek, IstekHatasi } from './api';
+import { istek, IstekHatasi, OTURUM_DUSTU } from './api';
 import { DenetimKaydiSayfasi } from './DenetimKaydi';
+import { Giris } from './Giris';
 import { KuralKitapligi } from './KuralKitapligi';
+import { Kullanicilar } from './Kullanicilar';
+
+export interface Oturum {
+  id: string;
+  eczaneId: string;
+  eczaneAd: string;
+  eposta: string;
+  adSoyad: string;
+  rol: 'eczaci' | 'calisan';
+  kuralYetkisi: boolean;
+}
 
 interface Ornek {
   baslik: string;
@@ -14,26 +26,61 @@ type Kontrol = KontrolSonucu & { kontrolId: string };
 
 const DURUM_ADI = { yesil: 'Uygun', sari: 'Dikkat', kirmizi: 'Uygun değil' } as const;
 
-const SEKMELER = { kontrol: 'Reçete kontrol', kurallar: 'Kural kitaplığı', denetim: 'Denetim kaydı' } as const;
+const SEKMELER = { kontrol: 'Reçete kontrol', kurallar: 'Kural kitaplığı', denetim: 'Denetim kaydı', kullanicilar: 'Kullanıcılar' } as const;
 type Sekme = keyof typeof SEKMELER;
 
 export function Uygulama() {
+  // undefined: henüz sorulmadı, null: oturum yok
+  const [oturum, setOturum] = useState<Oturum | null>();
   const [sekme, setSekme] = useState<Sekme>('kontrol');
+
+  useEffect(() => {
+    istek<Oturum>('/api/ben').then(setOturum, () => setOturum(null));
+    const dustu = () => setOturum(null);
+    window.addEventListener(OTURUM_DUSTU, dustu);
+    return () => window.removeEventListener(OTURUM_DUSTU, dustu);
+  }, []);
+
+  if (oturum === undefined) return null;
+  if (oturum === null)
+    return (
+      <Giris
+        girildi={(o) => {
+          setSekme('kontrol');
+          setOturum(o);
+        }}
+      />
+    );
+
+  const sekmeler = (Object.keys(SEKMELER) as Sekme[]).filter((s) => s !== 'kullanicilar' || oturum.rol === 'eczaci');
+
+  async function cikis() {
+    await istek('/api/cikis', {}).catch(() => undefined);
+    setOturum(null);
+  }
+
   return (
     <div className="sayfa">
       <header>
         <h1>ScalpIQ</h1>
         <div className="sekmeler">
-          {(Object.keys(SEKMELER) as Sekme[]).map((s) => (
+          {sekmeler.map((s) => (
             <button key={s} className={s === sekme ? 'secili' : ''} onClick={() => setSekme(s)}>
               {SEKMELER[s]}
             </button>
           ))}
         </div>
+        <div className="hesap">
+          <span>
+            {oturum.adSoyad} <span className="soluk">· {oturum.eczaneAd}</span>
+          </span>
+          <button onClick={cikis}>Çıkış</button>
+        </div>
       </header>
       {sekme === 'kontrol' && <ReceteKontrol />}
-      {sekme === 'kurallar' && <KuralKitapligi />}
+      {sekme === 'kurallar' && <KuralKitapligi duzenleyebilir={oturum.kuralYetkisi} />}
       {sekme === 'denetim' && <DenetimKaydiSayfasi />}
+      {sekme === 'kullanicilar' && <Kullanicilar benimId={oturum.id} />}
     </div>
   );
 }

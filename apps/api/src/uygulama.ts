@@ -11,35 +11,33 @@ import {
   type MotorAyarlari,
   type Recete,
 } from '@scalpiq/sut-motoru';
-import type { DenetimDeposu } from './denetim.js';
+import type { HesapDeposu } from './hesap.js';
+import { hesapRotalari } from './hesap-rotalari.js';
+import type { KontrolDeposu } from './kontrol-deposu.js';
 import type { KuralDeposu } from './kural-deposu.js';
 import { kuralRotalari } from './kural-rotalari.js';
 import type { MedulaIstemcisi } from './medula.js';
+import { oturumDenetimi } from './oturum.js';
 
 export interface Bagimliliklar {
   ek4a: Ek4aListesi;
   kurallar: KuralDeposu;
+  kontroller: KontrolDeposu;
+  hesaplar: HesapDeposu;
   ayarlar: MotorAyarlari;
   medula: MedulaIstemcisi;
-  denetim: DenetimDeposu;
   /** Kontrol gününü verir (testlerde sabitlenir) */
   bugun: () => string;
+  /** Oturum çerezi yalnızca HTTPS üzerinden gönderilsin mi (canlıda açık) */
+  guvenliCerez?: boolean;
   ornekler?: { baslik: string; recete: Recete; gecmis?: GecmisVerilis[] }[];
 }
 
-interface BekleyenKontrol {
-  recete: Recete;
-  sonuc: KontrolSonucu;
-  gonderildi: boolean;
-}
-
-// Kontrol sonucu sunucuda tutulur; gönderim yalnızca kontrol kimliğiyle yapılır.
-// Böylece istemci, kontrol edilmemiş ya da kontrolden sonra değiştirilmiş bir reçeteyi gönderemez.
-const KONTROL_SINIRI = 1000;
-
 export function uygulamaOlustur(b: Bagimliliklar) {
   const app = Fastify({ logger: false });
-  const kontroller = new Map<string, BekleyenKontrol>();
+
+  oturumDenetimi(app, b.hesaplar);
+  hesapRotalari(app, b.hesaplar, b.guvenliCerez ?? false);
 
   app.get('/api/ornekler', async () => b.ornekler ?? []);
 
@@ -56,30 +54,47 @@ export function uygulamaOlustur(b: Bagimliliklar) {
     }
 
     const kontrolId = randomUUID();
-    kontroller.set(kontrolId, { recete: structuredClone(recete), sonuc, gonderildi: false });
-    if (kontroller.size > KONTROL_SINIRI) kontroller.delete(kontroller.keys().next().value!);
+    await b.kontroller.ekle({ id: kontrolId, eczaneId: req.kullanici!.eczaneId, kullaniciId: req.kullanici!.id, recete, sonuc });
     return { kontrolId, ...sonuc };
   });
 
   app.post<{ Body: { kontrolId: string; gerekceler?: Gerekceler } }>('/api/gonder', async (req, reply) => {
     const { kontrolId, gerekceler = {} } = req.body ?? {};
-    const k = kontrolId ? kontroller.get(kontrolId) : undefined;
+    const k = typeof kontrolId === 'string' ? await b.kontroller.al(kontrolId, req.kullanici!.eczaneId) : undefined;
     if (!k) return reply.code(404).send({ hata: 'Kontrol bulunamadı. Reçeteyi yeniden kontrol edin.' });
-    if (k.gonderildi) return reply.code(409).send({ hata: 'Bu reçete zaten gönderildi.' });
+    if (k.durum !== 'bekliyor') return reply.code(409).send({ hata: 'Bu reçete zaten gönderildi.' });
 
     const karar = gonderimeIzinVarMi(k.sonuc, gerekceler);
     if (!karar.izin) return reply.code(409).send({ hata: 'Gönderim kilitli', engeller: karar.engeller });
 
-    const medula = await b.medula.receteGonder(k.recete);
-    if (!medula.basarili) return reply.code(502).send({ hata: medula.hata ?? 'Medula gönderimi başarısız' });
+    if (!(await b.kontroller.gonderimiBaslat(k.id))) return reply.code(409).send({ hata: 'Bu reçete zaten gönderildi.' });
 
-    k.gonderildi = true;
-    const kullanilanGerekceler = Object.fromEntries(Object.entries(gerekceler).filter(([, v]) => v.trim()));
-    await b.denetim.ekle({
+    let medula;
+    try {
+      medula = await b.medula.receteGonder(k.recete);
+    } catch (e) {
+      medula = { basarili: false, hata: (e as Error).message };
+    }
+    if (!medula.basarili) {
+      await b.kontroller.gonderimiBirak(k.id);
+      return reply.code(502).send({ hata: medula.hata ?? 'Medula gönderimi başarısız' });
+    }
+
+    const kullanilanGerekceler = Object.fromEntries(Object.entries(gerekceler).filter(([, v]) => typeof v === 'string' && v.trim()));
+    await b.kontroller.gonderimiTamamla(k.id, {
       zaman: new Date().toISOString(),
+      kontrolId: k.id,
       receteNo: k.recete.no,
+      gonderen: req.kullanici!.adSoyad,
       durum: k.sonuc.durum,
-      bulgular: k.sonuc.bulgular.map(({ kuralId, seviye, mesaj, kaynaklar, barkod, ilacKuraliId }) => ({ kuralId, seviye, mesaj, kaynaklar, barkod, ilacKuraliId })),
+      bulgular: k.sonuc.bulgular.map(({ kuralId, seviye, mesaj, kaynaklar, barkod, ilacKuraliId }) => ({
+        kuralId,
+        seviye,
+        mesaj,
+        kaynaklar,
+        barkod,
+        ilacKuraliId,
+      })),
       gerekceler: kullanilanGerekceler,
       ek4aYayimTarihi: k.sonuc.ek4aYayimTarihi,
       takipNo: medula.takipNo,
@@ -89,7 +104,7 @@ export function uygulamaOlustur(b: Bagimliliklar) {
 
   kuralRotalari(app, b.kurallar, b.bugun);
 
-  app.get('/api/denetim', async () => (await b.denetim.listele()).reverse());
+  app.get('/api/denetim', async (req) => b.kontroller.denetimKayitlari(req.kullanici!.eczaneId));
 
   return app;
 }

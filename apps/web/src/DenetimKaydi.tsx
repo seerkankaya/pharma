@@ -4,7 +4,9 @@ import { istek } from './api';
 
 interface DenetimKaydi {
   zaman: string;
+  kontrolId: string;
   receteNo: string;
+  gonderen: string;
   durum: Durum;
   bulgular: Pick<Bulgu, 'kuralId' | 'seviye' | 'mesaj' | 'barkod' | 'ilacKuraliId'>[];
   gerekceler: Gerekceler;
@@ -28,16 +30,16 @@ export function DenetimKaydiSayfasi() {
   return (
     <>
       <p className="soluk">
-        Medula'ya gönderilen her reçetenin kontrol izi. SGK itirazında hangi uyarının görüldüğünü ve hangi gerekçeyle geçildiğini gösterir.
+        Eczanenizden Medula'ya gönderilen her reçetenin kontrol izi. SGK itirazında hangi uyarının görüldüğünü ve hangi gerekçeyle geçildiğini gösterir.
       </p>
       {kayitlar.length === 0 && <p>Henüz gönderilmiş reçete yok.</p>}
       {kayitlar.map((k) => (
-        <section key={`${k.zaman}-${k.receteNo}`} className="kart">
+        <section key={k.kontrolId} className="kart">
           <h2>
             <span className={`rozet ${k.durum}`}>{DURUM_ADI[k.durum]}</span>
             Reçete {k.receteNo}
             <span className="soluk">
-              · {new Date(k.zaman).toLocaleString('tr-TR')} · Takip no {k.takipNo ?? '—'} · EK-4/A {k.ek4aYayimTarihi}
+              · {new Date(k.zaman).toLocaleString('tr-TR')} · {k.gonderen} · Takip no {k.takipNo ?? '—'} · EK-4/A {k.ek4aYayimTarihi}
             </span>
           </h2>
           {k.bulgular.length === 0 && <p className="soluk">Uyarı yoktu.</p>}
