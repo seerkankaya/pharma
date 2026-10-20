@@ -102,3 +102,12 @@ td { vertical-align: top; }
 .giris .form { display: flex; flex-direction: column; gap: 12px; }
 .giris h1 { margin: 0; }
 .giris p { margin: 0; }
+
+.iki-sutun { display: grid; grid-template-columns: repeat(auto-fit, minmax(320px, 1fr)); gap: 16px; }
+.iki-sutun .kart { margin-bottom: 0; }
+.iki-sutun + .mesaj, .iki-sutun + .kart { margin-top: 16px; }
+input.barkod { flex: 1; min-width: 200px; font: inherit; font-size: 18px; padding: 10px 12px; border: 1px solid var(--cizgi); border-radius: 8px; background: var(--kart); color: var(--yazi); }
+input.adet { width: 72px; font: inherit; padding: 4px 6px; border: 1px solid var(--cizgi); border-radius: 6px; background: var(--kart); color: var(--yazi); }
+.toplam { font-size: 20px; margin-right: auto; }
+button.kucuk { font: inherit; font-size: 12px; padding: 2px 8px; margin-left: 8px; border: 1px solid var(--kirmizi); color: var(--kirmizi); border-radius: 6px; background: var(--kart); cursor: pointer; }
+.sekmeler { flex-wrap: wrap; }

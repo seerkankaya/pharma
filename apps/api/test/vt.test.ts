@@ -5,6 +5,8 @@ import { EpostaKullanimdaHatasi } from '../src/hesap.js';
 import type { DenetimKaydi } from '../src/kontrol-deposu.js';
 import { gocleriUygula, havuzOlustur, type Havuz } from '../src/vt/baglanti.js';
 import { PgHesapDeposu, PgKontrolDeposu, PgKuralDeposu } from '../src/vt/pg-depolar.js';
+import { PgStokDeposu } from '../src/vt/pg-stok-deposu.js';
+import { StokHatasi, type StokHareketi } from '../src/stok/stok.js';
 
 // PostgreSQL depolarının testleri. Yalnızca TEST_DATABASE_URL verildiğinde çalışır;
 // veritabanındaki her şeyi siler, bu yüzden yalnızca test için açılmış bir veritabanı verin.
@@ -16,7 +18,7 @@ describe.skipIf(!adres)('PostgreSQL depoları', () => {
   beforeAll(async () => {
     havuz = havuzOlustur(adres!);
     await havuz.query('drop schema public cascade; create schema public;');
-    expect(await gocleriUygula(havuz)).toEqual(['001_ilk.sql']);
+    expect(await gocleriUygula(havuz)).toEqual(['001_ilk.sql', '002_stok.sql']);
   });
   afterAll(() => havuz?.end());
 
@@ -121,5 +123,47 @@ describe.skipIf(!adres)('PostgreSQL depoları', () => {
     await expect(havuz.query('update denetim set kayit = $1', ['{}'])).rejects.toThrow('Denetim kaydı değiştirilemez');
     await expect(havuz.query('delete from denetim')).rejects.toThrow('Denetim kaydı değiştirilemez');
     await expect(havuz.query('truncate denetim')).rejects.toThrow();
+  });
+
+  it('stok: ürün kartı, partiler, sıralı işlem ve değişmez hareketler', async () => {
+    const { e, k } = await eczaneVeKullanici();
+    const depo = new PgStokDeposu(havuz);
+    const barkod = '8690000000001';
+    await depo.urunKaydet(e.id, { barkod, ad: 'Krem', ilac: false, kdvOrani: 20, satisFiyatiKurus: 100 });
+    await depo.urunKaydet(e.id, { barkod, ad: 'Krem 50 ml', ilac: false, kdvOrani: 20, satisFiyatiKurus: 120 });
+    expect(await depo.urunler(e.id)).toEqual([{ barkod, ad: 'Krem 50 ml', ilac: false, kdvOrani: 20, satisFiyatiKurus: 120 }]);
+
+    const h = (miktar: number, partiNo: string, skt: string, tur: StokHareketi['tur'] = 'giris'): StokHareketi => ({
+      barkod, tur, miktar, partiNo, skt, kullaniciId: k.id, zaman: new Date().toISOString(),
+    });
+    await depo.islem(e.id, [barkod], () => ({ sonuc: null, hareketler: [h(5, 'B', '2027-06-30'), h(2, 'A', '2026-11-30')] }));
+    expect((await depo.stok(e.id)).get(barkod)).toEqual([
+      { partiNo: 'A', skt: '2026-11-30', miktar: 2 },
+      { partiNo: 'B', skt: '2027-06-30', miktar: 5 },
+    ]);
+
+    // Hata fırlatan işlem hiçbir şey yazmaz.
+    await expect(
+      depo.islem(e.id, [barkod], () => {
+        throw new StokHatasi('yetersiz');
+      }),
+    ).rejects.toThrow('yetersiz');
+
+    // Aynı anda 7 işlem birer kutu düşer; her biri bir öncekinin düştüğünü görür.
+    const gorulen = await Promise.all(
+      Array.from({ length: 7 }, () =>
+        depo.islem(e.id, [barkod], (p) => {
+          const toplam = (p.get(barkod) ?? []).reduce((t, x) => t + x.miktar, 0);
+          const ilk = p.get(barkod)![0]!;
+          return { sonuc: toplam, hareketler: [h(-1, ilk.partiNo, ilk.skt, 'imha')] };
+        }),
+      ),
+    );
+    expect(gorulen.sort((a, b) => b - a)).toEqual([7, 6, 5, 4, 3, 2, 1]);
+    expect((await depo.stok(e.id)).get(barkod)).toEqual([]);
+
+    await expect(havuz.query('update stok_hareketi set miktar = 100')).rejects.toThrow('değiştirilemez');
+    await expect(havuz.query('delete from stok_hareketi')).rejects.toThrow('değiştirilemez');
+    await expect(havuz.query('truncate satis cascade')).rejects.toThrow('değiştirilemez');
   });
 });

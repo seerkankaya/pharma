@@ -1,8 +1,10 @@
 import { ornekEk4a, ornekGecmis, ornekIlacKurallari, ornekReceteler, varsayilanAyarlar } from '@scalpiq/sut-motoru';
 import { SahteMedula } from './medula.js';
+import { turkiyeGunu } from './stok/stok.js';
 import { uygulamaOlustur } from './uygulama.js';
 import { gocleriUygula, havuzOlustur } from './vt/baglanti.js';
 import { PgHesapDeposu, PgKontrolDeposu, PgKuralDeposu } from './vt/pg-depolar.js';
+import { PgStokDeposu } from './vt/pg-stok-deposu.js';
 
 // Veritabanı adresi DATABASE_URL ile verilir; yoksa docker-compose.yml'deki yerel PostgreSQL kullanılır.
 const havuz = havuzOlustur(process.env.DATABASE_URL ?? 'postgres://scalpiq:scalpiq@127.0.0.1:5432/scalpiq');
@@ -19,11 +21,12 @@ const app = uygulamaOlustur({
   kurallar,
   kontroller: new PgKontrolDeposu(havuz),
   hesaplar: new PgHesapDeposu(havuz),
+  stok: new PgStokDeposu(havuz),
   ayarlar: varsayilanAyarlar,
   medula: new SahteMedula(),
   guvenliCerez: process.env.NODE_ENV === 'production',
   // Örnek reçeteler 20.10.2026 tarihli; demo için gün SCALPIQ_BUGUN ile sabitlenebilir.
-  bugun: () => process.env.SCALPIQ_BUGUN ?? new Date().toISOString().slice(0, 10),
+  bugun: () => process.env.SCALPIQ_BUGUN ?? turkiyeGunu(new Date()),
   ornekler: ornekReceteler.map((o) => ({
     ...o,
     gecmis: o.recete.no in ornekGecmis ? [...ornekGecmis[o.recete.no as keyof typeof ornekGecmis]] : undefined,

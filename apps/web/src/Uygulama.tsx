@@ -5,6 +5,8 @@ import { DenetimKaydiSayfasi } from './DenetimKaydi';
 import { Giris } from './Giris';
 import { KuralKitapligi } from './KuralKitapligi';
 import { Kullanicilar } from './Kullanicilar';
+import { Satis } from './Satis';
+import { Stok } from './Stok';
 
 export interface Oturum {
   id: string;
@@ -26,7 +28,14 @@ type Kontrol = KontrolSonucu & { kontrolId: string };
 
 const DURUM_ADI = { yesil: 'Uygun', sari: 'Dikkat', kirmizi: 'Uygun değil' } as const;
 
-const SEKMELER = { kontrol: 'Reçete kontrol', kurallar: 'Kural kitaplığı', denetim: 'Denetim kaydı', kullanicilar: 'Kullanıcılar' } as const;
+const SEKMELER = {
+  kontrol: 'Reçete kontrol',
+  satis: 'Satış',
+  stok: 'Stok',
+  kurallar: 'Kural kitaplığı',
+  denetim: 'Denetim kaydı',
+  kullanicilar: 'Kullanıcılar',
+} as const;
 type Sekme = keyof typeof SEKMELER;
 
 export function Uygulama() {
@@ -78,6 +87,8 @@ export function Uygulama() {
         </div>
       </header>
       {sekme === 'kontrol' && <ReceteKontrol />}
+      {sekme === 'satis' && <Satis />}
+      {sekme === 'stok' && <Stok eczaci={oturum.rol === 'eczaci'} />}
       {sekme === 'kurallar' && <KuralKitapligi duzenleyebilir={oturum.kuralYetkisi} />}
       {sekme === 'denetim' && <DenetimKaydiSayfasi />}
       {sekme === 'kullanicilar' && <Kullanicilar benimId={oturum.id} />}
@@ -101,24 +112,28 @@ function ReceteKontrol() {
 
   function sec(i: number) {
     setSecili(i);
-    setKontrol(undefined);
-    setGerekceler({});
     setMesaj(undefined);
   }
 
-  async function kontrolEt() {
+  // Reçete açılır açılmaz SUT kontrolü kendiliğinden çalışır. Eczacı başka reçeteye geçerse
+  // geç gelen eski sonuç ekrana yazılmaz.
+  const [yenile, setYenile] = useState(0);
+  useEffect(() => {
     if (!ornek) return;
-    setMesgul(true);
-    setMesaj(undefined);
+    let iptal = false;
+    setKontrol(undefined);
     setGerekceler({});
-    try {
-      setKontrol(await istek<Kontrol>('/api/kontrol', { recete: ornek.recete, gecmis: ornek.gecmis }));
-    } catch (e) {
-      setMesaj({ tur: 'hata', metin: (e as Error).message });
-    } finally {
-      setMesgul(false);
-    }
-  }
+    setMesgul(true);
+    istek<Kontrol>('/api/kontrol', { recete: ornek.recete, gecmis: ornek.gecmis })
+      .then(
+        (k) => !iptal && setKontrol(k),
+        (e) => !iptal && setMesaj({ tur: 'hata', metin: (e as Error).message }),
+      )
+      .finally(() => !iptal && setMesgul(false));
+    return () => {
+      iptal = true;
+    };
+  }, [ornek, yenile]);
 
   async function gonder() {
     if (!kontrol) return;
@@ -134,7 +149,7 @@ function ReceteKontrol() {
   }
 
   const kilit = useMemo(() => {
-    if (!kontrol) return 'Önce reçeteyi kontrol edin.';
+    if (!kontrol) return 'SUT kontrolü bekleniyor.';
     if (kontrol.bulgular.some((b) => b.seviye === 'kirmizi')) return 'Kırmızı uyarılar düzeltilmeden gönderilemez.';
     const eksik = kontrol.bulgular.filter((b) => (gerekceler[gerekceAnahtari(b)]?.trim().length ?? 0) < ASGARI_GEREKCE_UZUNLUGU).length;
     if (eksik) return `${eksik} uyarı için gerekçe yazın (en az ${ASGARI_GEREKCE_UZUNLUGU} karakter).`;
@@ -143,7 +158,7 @@ function ReceteKontrol() {
 
   return (
     <>
-      <p className="soluk">Reçete Medula'ya gitmeden önce SUT'a göre kontrol edilir. "Örnek kural" etiketli uyarılar gerçek SUT hükmü değildir.</p>
+      <p className="soluk">Reçete açıldığı anda SUT'a göre kendiliğinden kontrol edilir; sonuç uygun değilse Medula'ya gönderilemez. "Örnek kural" etiketli uyarılar gerçek SUT hükmü değildir.</p>
       <div className="duzen">
         <nav>
           <h2>Örnek reçeteler</h2>
@@ -159,9 +174,12 @@ function ReceteKontrol() {
           {ornek && <ReceteKarti recete={ornek.recete} />}
 
           <div className="eylemler">
-            <button className="birincil" onClick={kontrolEt} disabled={!ornek || mesgul}>
-              SUT kontrolü yap
-            </button>
+            {ornek && !kontrol && mesgul && <span className="soluk">SUT kontrolü yapılıyor…</span>}
+            {kontrol && (
+              <button onClick={() => setYenile((n) => n + 1)} disabled={mesgul}>
+                Yeniden kontrol et
+              </button>
+            )}
           </div>
 
           {kontrol && (

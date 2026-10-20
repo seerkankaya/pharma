@@ -1,0 +1,75 @@
+import { partiler, type Parti, type Satis, type StokHareketi, type Urun } from '../stok/stok.js';
+import type { StokDeposu, StokYazimi } from '../stok/stok-deposu.js';
+import { islemIcinde, type Havuz } from './baglanti.js';
+
+const HAREKET_ALANLARI = `parti_no as "partiNo", to_char(skt, 'YYYY-MM-DD') as skt, miktar`;
+
+function haritala(satirlar: (Parti & { barkod: string })[]) {
+  const m = new Map<string, Parti[]>();
+  for (const b of new Set(satirlar.map((s) => s.barkod))) m.set(b, partiler(satirlar.filter((s) => s.barkod === b)));
+  return m;
+}
+
+export class PgStokDeposu implements StokDeposu {
+  constructor(private readonly havuz: Havuz) {}
+
+  async urunler(eczaneId: string) {
+    const { rows } = await this.havuz.query<{ veri: Urun }>('select veri from urun where eczane_id = $1 order by veri ->> \'ad\'', [eczaneId]);
+    return rows.map((r) => r.veri);
+  }
+
+  async urunKaydet(eczaneId: string, urun: Urun) {
+    await this.havuz.query(
+      `insert into urun (eczane_id, barkod, veri) values ($1, $2, $3)
+       on conflict (eczane_id, barkod) do update set veri = excluded.veri, guncelleme = now()`,
+      [eczaneId, urun.barkod, JSON.stringify(urun)],
+    );
+  }
+
+  async stok(eczaneId: string) {
+    const { rows } = await this.havuz.query<Parti & { barkod: string }>(
+      `select barkod, ${HAREKET_ALANLARI} from stok_hareketi where eczane_id = $1`,
+      [eczaneId],
+    );
+    return haritala(rows);
+  }
+
+  islem<T>(eczaneId: string, barkodlar: string[], f: (partiler: Map<string, Parti[]>) => StokYazimi<T>): Promise<T> {
+    return islemIcinde(this.havuz, async (c) => {
+      // Ürün başına kilit; sıralı alınır ki iki işlem birbirini beklerken kilitlenmesin.
+      for (const b of [...new Set(barkodlar)].sort())
+        await c.query('select pg_advisory_xact_lock(hashtext($1))', [`stok:${eczaneId}:${b}`]);
+      const { rows } = await c.query<Parti & { barkod: string }>(
+        `select barkod, ${HAREKET_ALANLARI} from stok_hareketi where eczane_id = $1 and barkod = any($2)`,
+        [eczaneId, barkodlar],
+      );
+      const y = f(haritala(rows));
+      if (y.satis)
+        await c.query('insert into satis (id, eczane_id, kullanici_id, zaman, veri) values ($1, $2, $3, $4, $5)', [
+          y.satis.id,
+          eczaneId,
+          y.satis.kullaniciId,
+          y.satis.zaman,
+          JSON.stringify(y.satis),
+        ]);
+      for (const h of y.hareketler ?? []) await this.hareketYaz(c, eczaneId, h);
+      return y.sonuc;
+    });
+  }
+
+  private hareketYaz(c: { query: Havuz['query'] }, eczaneId: string, h: StokHareketi) {
+    return c.query(
+      `insert into stok_hareketi (eczane_id, barkod, tur, miktar, parti_no, skt, birim_maliyet_kurus, satis_id, aciklama, kullanici_id, zaman)
+       values ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)`,
+      [eczaneId, h.barkod, h.tur, h.miktar, h.partiNo, h.skt, h.birimMaliyetKurus ?? null, h.satisId ?? null, h.aciklama ?? null, h.kullaniciId, h.zaman],
+    );
+  }
+
+  async satislar(eczaneId: string, baslangic: Date, bitis: Date) {
+    const { rows } = await this.havuz.query<{ veri: Satis }>(
+      'select veri from satis where eczane_id = $1 and zaman >= $2 and zaman < $3 order by zaman desc',
+      [eczaneId, baslangic, bitis],
+    );
+    return rows.map((r) => r.veri);
+  }
+}

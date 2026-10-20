@@ -7,7 +7,12 @@ services:
       POSTGRES_PASSWORD: scalpiq
       POSTGRES_DB: scalpiq
     ports:
-      - '127.0.0.1:5432:5432'
+      # Bilgisayarda 5432 başka bir veritabanınca kullanılıyorsa: PG_PORT=5434 docker compose up -d
+      #   ve DATABASE_URL=postgres://scalpiq:scalpiq@127.0.0.1:5434/scalpiq
+      - '127.0.0.1:${PG_PORT:-5432}:5432'
     volumes:
-      - ./data/postgres:/var/lib/postgresql/data
+      - scalpiq_pharma_pg:/var/lib/postgresql/data
       - ./docker/initdb:/docker-entrypoint-initdb.d:ro
+
+volumes:
+  scalpiq_pharma_pg:

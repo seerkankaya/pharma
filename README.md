@@ -2,7 +2,7 @@
 
 Bulut tabanlı eczane yazılımı. İlk modül: **reçete Medula'ya gönderilmeden önce SUT kontrolü**.
 
-Reçete kontrol edilir ve sonuç üç durumdan biri olur:
+Reçete açıldığı anda kendiliğinden kontrol edilir ve sonuç üç durumdan biri olur:
 
 - **Kırmızı (uygun değil):** Medula'ya gönderim kilitlenir. Düzeltilmeden geçilemez.
 - **Sarı (dikkat):** Eczacı her uyarı için gerekçe yazınca gönderim açılır. Gerekçe denetim kaydına yazılır.
@@ -22,7 +22,8 @@ Her uyarı dayandığı kaynağı gösterir: SUT maddesi, EK-4/A listesi, Resmî
 | `packages/ek4a-aktarim` | SGK EK-4/A Excel dosyasını (xls/xlsx) okuyup barkodla aranabilir listeye çevirir |
 | `apps/api` | Fastify API: oturum, kontrol, gönderim, denetim, kural kitaplığı, kullanıcılar. PostgreSQL'de saklar. Medula şimdilik sahte istemciyle |
 | `apps/api/src/vt/gocler` | Veritabanı şeması. Sunucu açılırken uygulanmamış dosyaları sırayla uygular |
-| `apps/web` | React ekranları: giriş, reçete kontrol, kural kitaplığı, denetim kaydı, kullanıcılar |
+| `apps/api/src/stok` | Stok ve satış: ürün kartı, parti ve son kullanma tarihi, FEFO ile satış, imha |
+| `apps/web` | React ekranları: giriş, reçete kontrol, satış, stok, kural kitaplığı, denetim kaydı, kullanıcılar |
 
 ## Çalıştırma
 
@@ -31,6 +32,7 @@ Node.js 22 ve PostgreSQL 16 gerekir. PostgreSQL için en kolayı Docker:
 ```bash
 npm install
 docker compose up -d   # yerel PostgreSQL (scalpiq ve scalpiq_test veritabanları)
+                       # 5432 doluysa: PG_PORT=5434 docker compose up -d ve DATABASE_URL ile 5434'ü verin
 npm run kurulum -- --eczane "Kaya Eczanesi" --eposta serkan@ornek.com --ad "Ecz. Serkan Kaya" --kural-yetkisi
 npm run api            # API: http://127.0.0.1:3001
 npm run web            # Ekran: http://localhost:5173 (ayrı terminalde)
@@ -92,6 +94,21 @@ Uygulamadaki kuralların bir kopyası veritabanında da tetikleyici olarak durur
 - Onaylı kural silinemez. Değiştirilebilecek tek alanı, bir kez olmak üzere geçerlilik bitişidir.
 - Bir kontrol yalnızca bir kez gönderilir. Aynı anda gelen iki gönderim isteğinden yalnızca biri Medula'ya gider.
 - Gönderimin tamamlanması ve denetim kaydı aynı veritabanı işleminde yazılır.
+
+## Stok ve satış
+
+- **Ürün kartı:** Eczacı açar; ad, KDV oranı, KDV dahil satış fiyatı ve kritik stok içerir. Barkod EK-4/A'da varsa ürün ilaç sayılır ve adı listeden önerilir.
+- **Stok girişi:** Parti numarası ve son kullanma tarihiyle yapılır. Miadı geçmiş ürün stoğa alınamaz.
+- **Satış:** Barkod okutulur. Fiyat istemciden değil ürün kartından alınır. Stok, miadı en yakın partiden başlayarak düşülür (FEFO).
+  - Miadı geçmiş parti hiçbir koşulda satılmaz.
+  - Yetersiz stokta satış hiç yazılmaz.
+  - Aynı anda iki kasa son kutuları birlikte satamaz.
+- **Uyarılar:** Miadı geçmiş parti, miadına 90 gün ya da daha az kalan parti ve kritik stok.
+- **İmha:** Miadı geçen ya da bozulan ürünü eczacı gerekçeyle stoktan düşer.
+- **Hareket kayıtları:** Stok hareketleri ve satışlar veritabanında değiştirilemez ve silinemez.
+- **Gün sınırı:** Günlük satış özeti ve "bugün" Türkiye saatine göre hesaplanır.
+
+Reçeteli satış (hasta katılım payı, reçete ilaçlarının stoktan düşülmesi) Medula bağlantısıyla birlikte gelecek.
 
 ## Kural kitaplığı
 
