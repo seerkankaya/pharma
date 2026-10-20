@@ -29,7 +29,7 @@ export function DenetimKaydiSayfasi() {
 
   return (
     <>
-      <p className="soluk">
+      <p className="sayfa-notu">
         Eczanenizden Medula'ya gönderilen her reçetenin kontrol izi. SGK itirazında hangi uyarının görüldüğünü ve hangi gerekçeyle geçildiğini gösterir.
       </p>
       {kayitlar.length === 0 && <p>Henüz gönderilmiş reçete yok.</p>}

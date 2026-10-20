@@ -131,7 +131,7 @@ export function KuralKitapligi({ duzenleyebilir }: { duzenleyebilir: boolean }) 
 
   return (
     <>
-      <p className="soluk">
+      <p className="sayfa-notu">
         Kontrolde yalnızca onaylı kurallar kullanılır. SUT değişince eski kuralın geçerliliğini kapatın ve yeni sürümü taslak olarak ekleyip onaylayın.
         Onaylı kural düzenlenemez ve silinemez.
         {!duzenleyebilir && ' Kitaplığı yalnızca kural yetkisi olan eczacılar değiştirebilir.'}

@@ -22,9 +22,15 @@ export function Giris({ girildi }: { girildi: (o: Oturum) => void }) {
   }
 
   return (
-    <div className="sayfa giris">
+    <div className="giris">
       <form className="kart form" onSubmit={gonder}>
-        <h1>ScalpIQ</h1>
+        <h1>
+          <svg viewBox="0 0 32 32" width="32" height="32" aria-hidden>
+            <rect width="32" height="32" rx="9" fill="currentColor" />
+            <path d="M16 8v16M8 16h16" stroke="#fff" strokeWidth="3.2" strokeLinecap="round" />
+          </svg>
+          ScalpIQ
+        </h1>
         <p className="soluk">Eczane hesabınızla oturum açın.</p>
         <label>
           E-posta
