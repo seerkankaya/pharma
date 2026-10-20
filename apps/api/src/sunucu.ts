@@ -4,6 +4,7 @@ import { turkiyeGunu } from './stok/stok.js';
 import { uygulamaOlustur } from './uygulama.js';
 import { gocleriUygula, havuzOlustur } from './vt/baglanti.js';
 import { PgHesapDeposu, PgKontrolDeposu, PgKuralDeposu } from './vt/pg-depolar.js';
+import { PgCariDeposu } from './vt/pg-cari-deposu.js';
 import { PgStokDeposu } from './vt/pg-stok-deposu.js';
 
 // Veritabanı adresi DATABASE_URL ile verilir; yoksa docker-compose.yml'deki yerel PostgreSQL kullanılır.
@@ -22,6 +23,7 @@ const app = uygulamaOlustur({
   kontroller: new PgKontrolDeposu(havuz),
   hesaplar: new PgHesapDeposu(havuz),
   stok: new PgStokDeposu(havuz),
+  cari: new PgCariDeposu(havuz),
   ayarlar: varsayilanAyarlar,
   medula: new SahteMedula(),
   guvenliCerez: process.env.NODE_ENV === 'production',

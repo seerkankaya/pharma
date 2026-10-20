@@ -7,6 +7,7 @@ import { Giris } from './Giris';
 import { Kabuk, type Sayfa } from './Kabuk';
 import { KuralKitapligi } from './KuralKitapligi';
 import { Kullanicilar } from './Kullanicilar';
+import { Musteriler } from './Musteriler';
 import { Satis } from './Satis';
 import { Stok } from './Stok';
 
@@ -30,13 +31,14 @@ type Kontrol = KontrolSonucu & { kontrolId: string };
 
 const DURUM_ADI = { yesil: 'Uygun', sari: 'Dikkat', kirmizi: 'Uygun değil' } as const;
 
-type Sekme = 'kontrol' | 'satis' | 'stok' | 'alis' | 'kurallar' | 'denetim' | 'kullanicilar';
+type Sekme = 'kontrol' | 'satis' | 'stok' | 'alis' | 'musteriler' | 'kurallar' | 'denetim' | 'kullanicilar';
 
 const SAYFALAR: Sayfa<Sekme>[] = [
   { id: 'kontrol', ad: 'Reçete kontrol', ikon: 'recete', aciklama: "Reçete açılınca SUT'a göre kendiliğinden kontrol edilir; uygun değilse Medula'ya gönderilemez." },
   { id: 'satis', ad: 'Satış', ikon: 'satis', aciklama: 'Barkodu okutun; fiyat ürün kartından gelir, stok miadı en yakın partiden düşer.' },
   { id: 'stok', ad: 'Stok', ikon: 'stok', aciklama: 'Ürün kartları, partiler, son kullanma tarihleri ve stok uyarıları.' },
   { id: 'alis', ad: 'Alış ve sipariş', ikon: 'alis', aciklama: 'Ecza deposu faturaları stoğa parti olarak girer; kritik stoğa inen ürünler için sipariş önerisi.' },
+  { id: 'musteriler', ad: 'Müşteriler ve veresiye', ikon: 'musteriler', aciklama: 'Veresiye hesapları: borç, tahsilat ve hesap dökümü.' },
   { id: 'kurallar', ad: 'Kural kitaplığı', ikon: 'kurallar', aciklama: 'SUT ödeme koşulları. Kontrolde yalnızca onaylı kurallar kullanılır.' },
   { id: 'denetim', ad: 'Denetim kaydı', ikon: 'denetim', aciklama: "Medula'ya gönderilen her reçetenin kontrol izi; SGK itirazında kanıtınız." },
   { id: 'kullanicilar', ad: 'Kullanıcılar', ikon: 'kullanicilar', aciklama: 'Eczanenizde çalışanların hesapları.' },
@@ -90,6 +92,7 @@ export function Uygulama() {
       {gorunen === 'satis' && <Satis />}
       {gorunen === 'stok' && <Stok eczaci={oturum.rol === 'eczaci'} />}
       {gorunen === 'alis' && <Alis eczaci={oturum.rol === 'eczaci'} />}
+      {gorunen === 'musteriler' && <Musteriler eczaci={oturum.rol === 'eczaci'} />}
       {gorunen === 'kurallar' && <KuralKitapligi duzenleyebilir={oturum.kuralYetkisi} />}
       {gorunen === 'denetim' && <DenetimKaydiSayfasi />}
       {gorunen === 'kullanicilar' && <Kullanicilar benimId={oturum.id} />}

@@ -24,6 +24,7 @@ Her uyarı dayandığı kaynağı gösterir: SUT maddesi, EK-4/A listesi, Resmî
 | `apps/api/src/vt/gocler` | Veritabanı şeması. Sunucu açılırken uygulanmamış dosyaları sırayla uygular |
 | `apps/api/src/stok` | Stok ve satış: ürün kartı, parti ve son kullanma tarihi, FEFO ile satış, imha |
 | `apps/api/src/alis` | Alış faturası, tedarikçiler, sipariş önerisi |
+| `apps/api/src/cari` | Veresiye: müşteriler, borç, tahsilat |
 | `apps/web` | React ekranları: giriş, reçete kontrol, satış, stok, kural kitaplığı, denetim kaydı, kullanıcılar |
 
 ## Çalıştırma
@@ -121,6 +122,16 @@ Uygulamadaki kuralların bir kopyası veritabanında da tetikleyici olarak durur
 - **Tekrar engeli:** Aynı tedarikçiden aynı numaralı fatura iki kez girilemez.
 - **Değiştirilemez kayıt:** Fatura kaydı veritabanında değiştirilemez.
 - **Sipariş önerisi:** Kritik stoğa inen ürünler listelenir. Öneri, stoğu kritik stoğun iki katına tamamlar. Son tedarikçi ve son maliyet de gösterilir.
+
+## Müşteriler ve veresiye
+
+- **Veresiye satış:** Satış ekranında "Veresiye" seçilip müşteri seçilir. Borç, satışla aynı işlemde müşterinin hesabına yazılır.
+- **Limit:** Müşterinin veresiye limitini yalnızca eczacı belirler.
+  - Limiti aşan satış yapılmaz; stoktan da düşmez.
+  - Aynı anda iki kasa limiti birlikte aşamaz.
+- **Tahsilat:** Nakit ya da kartla alınır. Borçtan fazla tahsilat alınamaz.
+- **Hesap dökümü:** Her hareketi kaydedenin adıyla gösterir.
+- **Değiştirilemez kayıt:** Cari hareketler veritabanında değiştirilemez ve silinemez.
 
 Reçeteli satış (hasta katılım payı, reçete ilaçlarının stoktan düşülmesi) Medula bağlantısıyla birlikte gelecek.
 

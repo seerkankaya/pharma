@@ -108,7 +108,7 @@ describe('stok ve satış API', () => {
     expect(kalem.partiler).toEqual([{ partiNo: 'P2', skt: '2027-06-30', miktar: 4 }]);
 
     const gun = (await calisan('GET', `/api/satislar?gun=${turkiyeGunu(new Date(s.json().zaman))}`)).json();
-    expect(gun.ozet).toEqual({ adet: 1, toplamKurus: 75000, nakitKurus: 0, kartKurus: 75000 });
+    expect(gun.ozet).toEqual({ adet: 1, toplamKurus: 75000, nakitKurus: 0, kartKurus: 75000, veresiyeKurus: 0 });
   });
 
   it('stokta olmayan miktar satılamaz ve hiçbir şey yazılmaz', async () => {

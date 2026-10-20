@@ -31,7 +31,8 @@ export interface Satis {
   id: string;
   zaman: string;
   satan: string;
-  odemeTuru: 'nakit' | 'kart';
+  odemeTuru: 'nakit' | 'kart' | 'veresiye';
+  musteriAd?: string;
   kalemler: { barkod: string; ad: string; miktar: number; birimFiyatKurus: number; tutarKurus: number }[];
   toplamKurus: number;
   kdvKurus: number;

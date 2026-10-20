@@ -325,3 +325,18 @@ h2 button.sag:hover { border-color: var(--vurgu); color: var(--vurgu); }
 .fatura-satirlari input:disabled { background: var(--kart-2); color: var(--yazi); }
 .kart form.eylemler input { flex: 1; min-width: 140px; }
 .fatura-satirlari td:nth-child(2) input { min-width: 210px; }
+
+/* ---------- Müşteriler ---------- */
+.ozet-kartlari { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 16px; margin-bottom: 16px; }
+.ozet-kartlari .kart { margin: 0; display: flex; flex-direction: column; gap: 4px; }
+.ozet-kartlari strong { font-size: 24px; letter-spacing: -0.01em; }
+.eylemler.ust { margin: 0 0 12px; }
+input.arama { flex: 1; }
+input.tutar { width: 140px; }
+tr.secilebilir { cursor: pointer; }
+tr.secilebilir.secili td { background: var(--vurgu-zemin); }
+td.borc { color: var(--sari); font-weight: 600; white-space: nowrap; }
+td.alacak { color: var(--yesil); font-weight: 600; white-space: nowrap; }
+.kart .form { margin-top: 20px; padding-top: 16px; border-top: 1px solid var(--cizgi); }
+.eylemler.veresiye { padding-top: 12px; border-top: 1px dashed var(--cizgi); }
+.eylemler.veresiye select { min-width: 260px; }

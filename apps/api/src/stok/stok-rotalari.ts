@@ -1,6 +1,7 @@
 import { randomUUID } from 'node:crypto';
 import type { FastifyInstance } from 'fastify';
 import type { Ek4aListesi } from '@scalpiq/sut-motoru';
+import type { CariBorc, CariDeposu } from '../cari/cari.js';
 import { eczaciGerekli } from '../oturum.js';
 import {
   satisHazirla,
@@ -24,7 +25,7 @@ function gunAraligi(gun: string) {
   return { baslangic, bitis: new Date(baslangic.getTime() + 86_400_000) };
 }
 
-export function stokRotalari(app: FastifyInstance, depo: StokDeposu, ek4a: Ek4aListesi, bugun: () => string) {
+export function stokRotalari(app: FastifyInstance, depo: StokDeposu, cari: CariDeposu, ek4a: Ek4aListesi, bugun: () => string) {
   app.get('/api/urunler', async (req) => depo.urunler(req.kullanici!.eczaneId));
 
   // Kart yoksa EK-4/A'dan öneri döner; ekran ilacın adını buradan doldurur.
@@ -124,6 +125,8 @@ export function stokRotalari(app: FastifyInstance, depo: StokDeposu, ek4a: Ek4aL
     if (hatalar.length) return reply.code(400).send({ hata: 'Satış geçersiz', hatalar });
     const { eczaneId, id: kullaniciId, adSoyad } = req.kullanici!;
     const urunler = new Map((await depo.urunler(eczaneId)).map((u) => [u.barkod, u]));
+    const musteri = req.body.odemeTuru === 'veresiye' ? await cari.musteriAl(eczaneId, req.body.musteriId!) : undefined;
+    if (req.body.odemeTuru === 'veresiye' && !musteri) return reply.code(400).send({ hata: 'Satış geçersiz', hatalar: ['Müşteri bulunamadı'] });
     try {
       const satis = await depo.islem(
         eczaneId,
@@ -134,7 +137,22 @@ export function stokRotalari(app: FastifyInstance, depo: StokDeposu, ek4a: Ek4aL
             zaman: new Date().toISOString(),
             kullaniciId,
             satan: adSoyad,
+            ...(musteri ? { musteriId: musteri.id, musteriAd: musteri.adSoyad } : {}),
             ...satisHazirla(req.body, urunler, partiler, bugun()),
+          };
+          const cariBorc: CariBorc | undefined = musteri && {
+            musteriAd: musteri.adSoyad,
+            limitKurus: musteri.limitKurus,
+            hareket: {
+              musteriId: musteri.id,
+              tur: 'borc',
+              tutarKurus: s.toplamKurus,
+              satisId: s.id,
+              aciklama: s.kalemler.map((k) => `${k.miktar} × ${k.ad}`).join(', '),
+              kullaniciId,
+              kaydeden: adSoyad,
+              zaman: s.zaman,
+            },
           };
           const hareketler = s.kalemler.flatMap((k) =>
             k.partiler.map((p): StokHareketi => ({
@@ -148,7 +166,7 @@ export function stokRotalari(app: FastifyInstance, depo: StokDeposu, ek4a: Ek4aL
               zaman: s.zaman,
             })),
           );
-          return { sonuc: s, satis: s, hareketler };
+          return { sonuc: s, satis: s, hareketler, cariBorc };
         },
       );
       return reply.code(201).send(satis);
@@ -164,6 +182,10 @@ export function stokRotalari(app: FastifyInstance, depo: StokDeposu, ek4a: Ek4aL
     const { baslangic, bitis } = gunAraligi(gun);
     const satislar = await depo.satislar(req.kullanici!.eczaneId, baslangic, bitis);
     const toplam = (tur?: string) => satislar.filter((s) => !tur || s.odemeTuru === tur).reduce((t, s) => t + s.toplamKurus, 0);
-    return { gun, satislar, ozet: { adet: satislar.length, toplamKurus: toplam(), nakitKurus: toplam('nakit'), kartKurus: toplam('kart') } };
+    return {
+      gun,
+      satislar,
+      ozet: { adet: satislar.length, toplamKurus: toplam(), nakitKurus: toplam('nakit'), kartKurus: toplam('kart'), veresiyeKurus: toplam('veresiye') },
+    };
   });
 }
