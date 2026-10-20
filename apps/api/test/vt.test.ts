@@ -6,6 +6,8 @@ import type { DenetimKaydi } from '../src/kontrol-deposu.js';
 import { gocleriUygula, havuzOlustur, type Havuz } from '../src/vt/baglanti.js';
 import { PgHesapDeposu, PgKontrolDeposu, PgKuralDeposu } from '../src/vt/pg-depolar.js';
 import { PgStokDeposu } from '../src/vt/pg-stok-deposu.js';
+import { FaturaZatenVarHatasi } from '../src/stok/stok-deposu.js';
+import type { AlisFaturasi } from '../src/alis/alis.js';
 import { StokHatasi, type StokHareketi } from '../src/stok/stok.js';
 
 // PostgreSQL depolarının testleri. Yalnızca TEST_DATABASE_URL verildiğinde çalışır;
@@ -18,7 +20,7 @@ describe.skipIf(!adres)('PostgreSQL depoları', () => {
   beforeAll(async () => {
     havuz = havuzOlustur(adres!);
     await havuz.query('drop schema public cascade; create schema public;');
-    expect(await gocleriUygula(havuz)).toEqual(['001_ilk.sql', '002_stok.sql']);
+    expect(await gocleriUygula(havuz)).toEqual(['001_ilk.sql', '002_stok.sql', '003_alis.sql']);
   });
   afterAll(() => havuz?.end());
 
@@ -165,5 +167,30 @@ describe.skipIf(!adres)('PostgreSQL depoları', () => {
     await expect(havuz.query('update stok_hareketi set miktar = 100')).rejects.toThrow('değiştirilemez');
     await expect(havuz.query('delete from stok_hareketi')).rejects.toThrow('değiştirilemez');
     await expect(havuz.query('truncate satis cascade')).rejects.toThrow('değiştirilemez');
+  });
+
+  it('alış: fatura, yeni kart ve stok tek işlemde; aynı fatura iki kez girilemez', async () => {
+    const { e, k } = await eczaneVeKullanici();
+    const depo = new PgStokDeposu(havuz);
+    const t = await depo.tedarikciEkle(e.id, { ad: 'Depo', vergiNo: '1234567890' });
+    expect(await depo.tedarikciler(e.id)).toEqual([t]);
+    const barkod = '8690000000009';
+    const fatura = {
+      id: randomUUID(), tedarikciId: t.id, tedarikciAd: 'Depo', faturaNo: 'F-1', tarih: '2026-10-19', kalemler: [],
+      netKurus: 0, kdvKurus: 0, toplamKurus: 0, kaydeden: 'X', zaman: new Date().toISOString(),
+    } as AlisFaturasi;
+    const yaz = (f: AlisFaturasi) =>
+      depo.islem(e.id, [barkod], () => ({
+        sonuc: null,
+        fatura: f,
+        yeniUrunler: [{ barkod, ad: 'Yeni', ilac: false, kdvOrani: 20 as const, satisFiyatiKurus: 500 }],
+        hareketler: [{ barkod, tur: 'giris' as const, miktar: 3, partiNo: 'P', skt: '2027-01-01', faturaId: f.id, kullaniciId: k.id, zaman: f.zaman }],
+      }));
+    await yaz(fatura);
+    await expect(yaz({ ...fatura, id: randomUUID() })).rejects.toBeInstanceOf(FaturaZatenVarHatasi);
+    expect((await depo.stok(e.id)).get(barkod)).toEqual([{ partiNo: 'P', skt: '2027-01-01', miktar: 3 }]);
+    expect((await depo.urunler(e.id)).map((u) => u.ad)).toEqual(['Yeni']);
+    expect((await depo.faturalar(e.id)).map((f) => f.faturaNo)).toEqual(['F-1']);
+    await expect(havuz.query('delete from alis_faturasi')).rejects.toThrow('değiştirilemez');
   });
 });

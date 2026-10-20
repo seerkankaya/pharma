@@ -314,3 +314,14 @@ h2 button.sag:hover { border-color: var(--vurgu); color: var(--vurgu); }
 @media (min-width: 901px) {
   .kabuk { background: linear-gradient(to right, var(--menu-zemin) 252px, var(--zemin) 252px); }
 }
+
+/* ---------- Alış faturası ---------- */
+.fatura-satirlari { overflow-x: auto; margin: 0 -4px; }
+.fatura-satirlari td { padding: 6px 4px; }
+.fatura-satirlari input, .fatura-satirlari select { width: 100%; min-width: 120px; padding: 7px 9px; }
+.fatura-satirlari input.dar { min-width: 64px; width: 72px; }
+.fatura-satirlari input.orta { min-width: 96px; }
+.fatura-satirlari input.ek { margin-top: 6px; }
+.fatura-satirlari input:disabled { background: var(--kart-2); color: var(--yazi); }
+.kart form.eylemler input { flex: 1; min-width: 140px; }
+.fatura-satirlari td:nth-child(2) input { min-width: 210px; }

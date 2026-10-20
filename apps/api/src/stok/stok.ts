@@ -28,6 +28,7 @@ export interface StokHareketi {
   skt: string;
   birimMaliyetKurus?: number;
   satisId?: string;
+  faturaId?: string;
   aciklama?: string;
   kullaniciId: string;
   zaman: string;

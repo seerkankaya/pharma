@@ -20,6 +20,7 @@ import type { MedulaIstemcisi } from './medula.js';
 import { oturumDenetimi } from './oturum.js';
 import type { StokDeposu } from './stok/stok-deposu.js';
 import { stokRotalari } from './stok/stok-rotalari.js';
+import { alisRotalari } from './alis/alis-rotalari.js';
 
 export interface Bagimliliklar {
   ek4a: Ek4aListesi;
@@ -43,6 +44,9 @@ export function uygulamaOlustur(b: Bagimliliklar) {
   hesapRotalari(app, b.hesaplar, b.guvenliCerez ?? false);
 
   app.get('/api/ornekler', async () => b.ornekler ?? []);
+
+  // Sunucunun "bugün" kabul ettiği gün; tarih alanlarının varsayılanı buradan gelir.
+  app.get('/api/bugun', async () => ({ bugun: b.bugun() }));
 
   app.post<{ Body: { recete: Recete; gecmis?: GecmisVerilis[] } }>('/api/kontrol', async (req, reply) => {
     const { recete, gecmis } = req.body ?? {};
@@ -107,6 +111,7 @@ export function uygulamaOlustur(b: Bagimliliklar) {
 
   kuralRotalari(app, b.kurallar, b.bugun);
   stokRotalari(app, b.stok, b.ek4a, b.bugun);
+  alisRotalari(app, b.stok, b.ek4a, b.bugun);
 
   app.get('/api/denetim', async (req) => b.kontroller.denetimKayitlari(req.kullanici!.eczaneId));
 

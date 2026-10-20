@@ -1,11 +1,21 @@
+import type { AlisFaturasi, Tedarikci } from '../alis/alis.js';
 import type { Parti, Satis, StokHareketi, Urun } from './stok.js';
-import { partiler } from './stok.js';
+import { partiler, StokHatasi } from './stok.js';
+
+export class FaturaZatenVarHatasi extends StokHatasi {
+  constructor(faturaNo: string) {
+    super(`${faturaNo} numaralı fatura bu tedarikçiden zaten girilmiş`);
+  }
+}
 
 /** Bir stok işleminin yazacakları. */
 export interface StokYazimi<T> {
   sonuc: T;
   hareketler?: StokHareketi[];
   satis?: Satis;
+  fatura?: AlisFaturasi;
+  /** İşlemle birlikte açılacak ürün kartları (faturada kartı olmayan ürünler) */
+  yeniUrunler?: Urun[];
 }
 
 export interface StokDeposu {
@@ -21,12 +31,18 @@ export interface StokDeposu {
   islem<T>(eczaneId: string, barkodlar: string[], f: (partiler: Map<string, Parti[]>) => StokYazimi<T>): Promise<T>;
   /** [baslangic, bitis) aralığındaki satışlar, en yenisi önce. */
   satislar(eczaneId: string, baslangic: Date, bitis: Date): Promise<Satis[]>;
+  tedarikciler(eczaneId: string): Promise<Tedarikci[]>;
+  tedarikciEkle(eczaneId: string, t: Omit<Tedarikci, 'id'>): Promise<Tedarikci>;
+  /** Alış faturaları, en yenisi önce. */
+  faturalar(eczaneId: string): Promise<AlisFaturasi[]>;
 }
 
 export class BellekStokDeposu implements StokDeposu {
   private urunMap = new Map<string, Map<string, Urun>>();
   private hareketler: (StokHareketi & { eczaneId: string })[] = [];
   private satisListesi: (Satis & { eczaneId: string })[] = [];
+  private tedarikciListesi: (Tedarikci & { eczaneId: string })[] = [];
+  private faturaListesi: (AlisFaturasi & { eczaneId: string })[] = [];
   private sira: Promise<unknown> = Promise.resolve();
 
   async urunler(eczaneId: string) {
@@ -52,6 +68,13 @@ export class BellekStokDeposu implements StokDeposu {
   islem<T>(eczaneId: string, barkodlar: string[], f: (partiler: Map<string, Parti[]>) => StokYazimi<T>): Promise<T> {
     const sonuc = this.sira.then(() => {
       const y = f(this.partiHaritasi(eczaneId, barkodlar));
+      if (y.fatura) {
+        const { tedarikciId, faturaNo } = y.fatura;
+        if (this.faturaListesi.some((x) => x.eczaneId === eczaneId && x.tedarikciId === tedarikciId && x.faturaNo === faturaNo))
+          throw new FaturaZatenVarHatasi(faturaNo);
+        this.faturaListesi.push(structuredClone({ ...y.fatura, eczaneId }));
+      }
+      for (const u of y.yeniUrunler ?? []) void this.urunKaydet(eczaneId, u);
       if (y.satis) this.satisListesi.push(structuredClone({ ...y.satis, eczaneId }));
       for (const h of y.hareketler ?? []) this.hareketler.push({ ...h, eczaneId });
       return y.sonuc;
@@ -64,6 +87,23 @@ export class BellekStokDeposu implements StokDeposu {
     return this.satisListesi
       .filter((s) => s.eczaneId === eczaneId && new Date(s.zaman) >= baslangic && new Date(s.zaman) < bitis)
       .map(({ eczaneId: _e, ...s }) => structuredClone(s))
+      .reverse();
+  }
+
+  async tedarikciler(eczaneId: string) {
+    return this.tedarikciListesi.filter((t) => t.eczaneId === eczaneId).map(({ eczaneId: _e, ...t }) => t);
+  }
+
+  async tedarikciEkle(eczaneId: string, t: Omit<Tedarikci, 'id'>) {
+    const yeni = { ...t, id: crypto.randomUUID() };
+    this.tedarikciListesi.push({ ...yeni, eczaneId });
+    return yeni;
+  }
+
+  async faturalar(eczaneId: string) {
+    return this.faturaListesi
+      .filter((f) => f.eczaneId === eczaneId)
+      .map(({ eczaneId: _e, ...f }) => structuredClone(f))
       .reverse();
   }
 }
