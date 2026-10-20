@@ -3,6 +3,7 @@ import { ASGARI_GEREKCE_UZUNLUGU, gerekceAnahtari, type Bulgu, type GecmisVerili
 import { istek, IstekHatasi, OTURUM_DUSTU } from './api';
 import { DenetimKaydiSayfasi } from './DenetimKaydi';
 import { Giris } from './Giris';
+import { Kabuk, type Sayfa } from './Kabuk';
 import { KuralKitapligi } from './KuralKitapligi';
 import { Kullanicilar } from './Kullanicilar';
 import { Satis } from './Satis';
@@ -28,20 +29,37 @@ type Kontrol = KontrolSonucu & { kontrolId: string };
 
 const DURUM_ADI = { yesil: 'Uygun', sari: 'Dikkat', kirmizi: 'Uygun değil' } as const;
 
-const SEKMELER = {
-  kontrol: 'Reçete kontrol',
-  satis: 'Satış',
-  stok: 'Stok',
-  kurallar: 'Kural kitaplığı',
-  denetim: 'Denetim kaydı',
-  kullanicilar: 'Kullanıcılar',
-} as const;
-type Sekme = keyof typeof SEKMELER;
+type Sekme = 'kontrol' | 'satis' | 'stok' | 'kurallar' | 'denetim' | 'kullanicilar';
+
+const SAYFALAR: Sayfa<Sekme>[] = [
+  { id: 'kontrol', ad: 'Reçete kontrol', ikon: 'recete', aciklama: "Reçete açılınca SUT'a göre kendiliğinden kontrol edilir; uygun değilse Medula'ya gönderilemez." },
+  { id: 'satis', ad: 'Satış', ikon: 'satis', aciklama: 'Barkodu okutun; fiyat ürün kartından gelir, stok miadı en yakın partiden düşer.' },
+  { id: 'stok', ad: 'Stok', ikon: 'stok', aciklama: 'Ürün kartları, partiler, son kullanma tarihleri ve stok uyarıları.' },
+  { id: 'kurallar', ad: 'Kural kitaplığı', ikon: 'kurallar', aciklama: 'SUT ödeme koşulları. Kontrolde yalnızca onaylı kurallar kullanılır.' },
+  { id: 'denetim', ad: 'Denetim kaydı', ikon: 'denetim', aciklama: "Medula'ya gönderilen her reçetenin kontrol izi; SGK itirazında kanıtınız." },
+  { id: 'kullanicilar', ad: 'Kullanıcılar', ikon: 'kullanicilar', aciklama: 'Eczanenizde çalışanların hesapları.' },
+];
+
+const sekmeOku = (): Sekme => {
+  const h = window.location.hash.replace('#/', '') as Sekme;
+  return SAYFALAR.some((s) => s.id === h) ? h : 'kontrol';
+};
+
 
 export function Uygulama() {
   // undefined: henüz sorulmadı, null: oturum yok
   const [oturum, setOturum] = useState<Oturum | null>();
-  const [sekme, setSekme] = useState<Sekme>('kontrol');
+  const [sekme, setSekmeDurumu] = useState<Sekme>(sekmeOku);
+  const setSekme = (s: Sekme) => {
+    window.location.hash = `/${s}`;
+    setSekmeDurumu(s);
+  };
+
+  useEffect(() => {
+    const degisti = () => setSekmeDurumu(sekmeOku());
+    window.addEventListener('hashchange', degisti);
+    return () => window.removeEventListener('hashchange', degisti);
+  }, []);
 
   useEffect(() => {
     istek<Oturum>('/api/ben').then(setOturum, () => setOturum(null));
@@ -61,7 +79,8 @@ export function Uygulama() {
       />
     );
 
-  const sekmeler = (Object.keys(SEKMELER) as Sekme[]).filter((s) => s !== 'kullanicilar' || oturum.rol === 'eczaci');
+  const sayfalar = SAYFALAR.filter((s) => s.id !== 'kullanicilar' || oturum.rol === 'eczaci');
+  const gorunen = sayfalar.some((s) => s.id === sekme) ? sekme : 'kontrol';
 
   async function cikis() {
     await istek('/api/cikis', {}).catch(() => undefined);
@@ -69,30 +88,14 @@ export function Uygulama() {
   }
 
   return (
-    <div className="sayfa">
-      <header>
-        <h1>ScalpIQ</h1>
-        <div className="sekmeler">
-          {sekmeler.map((s) => (
-            <button key={s} className={s === sekme ? 'secili' : ''} onClick={() => setSekme(s)}>
-              {SEKMELER[s]}
-            </button>
-          ))}
-        </div>
-        <div className="hesap">
-          <span>
-            {oturum.adSoyad} <span className="soluk">· {oturum.eczaneAd}</span>
-          </span>
-          <button onClick={cikis}>Çıkış</button>
-        </div>
-      </header>
-      {sekme === 'kontrol' && <ReceteKontrol />}
-      {sekme === 'satis' && <Satis />}
-      {sekme === 'stok' && <Stok eczaci={oturum.rol === 'eczaci'} />}
-      {sekme === 'kurallar' && <KuralKitapligi duzenleyebilir={oturum.kuralYetkisi} />}
-      {sekme === 'denetim' && <DenetimKaydiSayfasi />}
-      {sekme === 'kullanicilar' && <Kullanicilar benimId={oturum.id} />}
-    </div>
+    <Kabuk oturum={oturum} sayfalar={sayfalar} secili={gorunen} sec={setSekme} cikis={cikis}>
+      {gorunen === 'kontrol' && <ReceteKontrol />}
+      {gorunen === 'satis' && <Satis />}
+      {gorunen === 'stok' && <Stok eczaci={oturum.rol === 'eczaci'} />}
+      {gorunen === 'kurallar' && <KuralKitapligi duzenleyebilir={oturum.kuralYetkisi} />}
+      {gorunen === 'denetim' && <DenetimKaydiSayfasi />}
+      {gorunen === 'kullanicilar' && <Kullanicilar benimId={oturum.id} />}
+    </Kabuk>
   );
 }
 
@@ -158,7 +161,7 @@ function ReceteKontrol() {
 
   return (
     <>
-      <p className="soluk">Reçete açıldığı anda SUT'a göre kendiliğinden kontrol edilir; sonuç uygun değilse Medula'ya gönderilemez. "Örnek kural" etiketli uyarılar gerçek SUT hükmü değildir.</p>
+      <p className="sayfa-notu">"Örnek kural" etiketli uyarılar gerçek SUT hükmü değildir; canlı kullanımdan önce kural kitaplığı SUT'tan kodlanıp onaylanmalı.</p>
       <div className="duzen">
         <nav>
           <h2>Örnek reçeteler</h2>
@@ -173,20 +176,16 @@ function ReceteKontrol() {
         <main>
           {ornek && <ReceteKarti recete={ornek.recete} />}
 
-          <div className="eylemler">
-            {ornek && !kontrol && mesgul && <span className="soluk">SUT kontrolü yapılıyor…</span>}
-            {kontrol && (
-              <button onClick={() => setYenile((n) => n + 1)} disabled={mesgul}>
-                Yeniden kontrol et
-              </button>
-            )}
-          </div>
+          {ornek && !kontrol && mesgul && <p className="soluk">SUT kontrolü yapılıyor…</p>}
 
           {kontrol && (
             <section className={`sonuc ${kontrol.durum}`}>
               <h2>
                 <span className={`rozet ${kontrol.durum}`}>{DURUM_ADI[kontrol.durum]}</span>
                 {kontrol.bulgular.length === 0 ? 'Sorun bulunmadı' : `${kontrol.bulgular.length} uyarı`}
+                <button className="sag" onClick={() => setYenile((n) => n + 1)} disabled={mesgul}>
+                  Yeniden kontrol et
+                </button>
               </h2>
               <p className="soluk">EK-4/A listesi: {kontrol.ek4aYayimTarihi} · Kontrol günü: {kontrol.kontrolTarihi}</p>
               {kontrol.bulgular.map((b) => (

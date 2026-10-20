@@ -99,7 +99,7 @@ export function Stok({ eczaci }: { eczaci: boolean }) {
 
   return (
     <>
-      <p className="soluk">
+      <p className="sayfa-notu">
         Stok, giriş, satış ve imha hareketlerinden hesaplanır. Hareketler silinmez. Miadı geçmiş parti satılamaz; eczacı imha kaydıyla stoktan düşer.
       </p>
 

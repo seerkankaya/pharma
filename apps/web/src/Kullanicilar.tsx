@@ -52,7 +52,7 @@ export function Kullanicilar({ benimId }: { benimId: string }) {
 
   return (
     <>
-      <p className="soluk">Eczanenizde çalışanların hesapları. Ayrılan çalışanın hesabını kapatın; geçmiş denetim kayıtlarında adı kalır.</p>
+      <p className="sayfa-notu">Ayrılan çalışanın hesabını kapatın; geçmiş denetim kayıtlarında adı kalır.</p>
       <form className="kart form" onSubmit={ekle}>
         <fieldset>
           <legend>Yeni kullanıcı</legend>

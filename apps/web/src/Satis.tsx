@@ -75,7 +75,6 @@ export function Satis() {
 
   return (
     <>
-      <p className="soluk">Elden satış. Barkodu okutun; fiyat ürün kartından gelir, stok son kullanma tarihi en yakın partiden düşer.</p>
       <form className="kart eylemler" onSubmit={okut}>
         <input
           ref={barkodKutusu}
