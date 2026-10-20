@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { ASGARI_GEREKCE_UZUNLUGU, gerekceAnahtari, type Bulgu, type GecmisVerilis, type KontrolSonucu, type Recete } from '@scalpiq/sut-motoru';
 import { istek, IstekHatasi, OTURUM_DUSTU } from './api';
+import { Alis } from './Alis';
 import { DenetimKaydiSayfasi } from './DenetimKaydi';
 import { Giris } from './Giris';
 import { Kabuk, type Sayfa } from './Kabuk';
@@ -29,12 +30,13 @@ type Kontrol = KontrolSonucu & { kontrolId: string };
 
 const DURUM_ADI = { yesil: 'Uygun', sari: 'Dikkat', kirmizi: 'Uygun değil' } as const;
 
-type Sekme = 'kontrol' | 'satis' | 'stok' | 'kurallar' | 'denetim' | 'kullanicilar';
+type Sekme = 'kontrol' | 'satis' | 'stok' | 'alis' | 'kurallar' | 'denetim' | 'kullanicilar';
 
 const SAYFALAR: Sayfa<Sekme>[] = [
   { id: 'kontrol', ad: 'Reçete kontrol', ikon: 'recete', aciklama: "Reçete açılınca SUT'a göre kendiliğinden kontrol edilir; uygun değilse Medula'ya gönderilemez." },
   { id: 'satis', ad: 'Satış', ikon: 'satis', aciklama: 'Barkodu okutun; fiyat ürün kartından gelir, stok miadı en yakın partiden düşer.' },
   { id: 'stok', ad: 'Stok', ikon: 'stok', aciklama: 'Ürün kartları, partiler, son kullanma tarihleri ve stok uyarıları.' },
+  { id: 'alis', ad: 'Alış ve sipariş', ikon: 'alis', aciklama: 'Ecza deposu faturaları stoğa parti olarak girer; kritik stoğa inen ürünler için sipariş önerisi.' },
   { id: 'kurallar', ad: 'Kural kitaplığı', ikon: 'kurallar', aciklama: 'SUT ödeme koşulları. Kontrolde yalnızca onaylı kurallar kullanılır.' },
   { id: 'denetim', ad: 'Denetim kaydı', ikon: 'denetim', aciklama: "Medula'ya gönderilen her reçetenin kontrol izi; SGK itirazında kanıtınız." },
   { id: 'kullanicilar', ad: 'Kullanıcılar', ikon: 'kullanicilar', aciklama: 'Eczanenizde çalışanların hesapları.' },
@@ -71,12 +73,7 @@ export function Uygulama() {
   if (oturum === undefined) return null;
   if (oturum === null)
     return (
-      <Giris
-        girildi={(o) => {
-          setSekme('kontrol');
-          setOturum(o);
-        }}
-      />
+      <Giris girildi={setOturum} />
     );
 
   const sayfalar = SAYFALAR.filter((s) => s.id !== 'kullanicilar' || oturum.rol === 'eczaci');
@@ -92,6 +89,7 @@ export function Uygulama() {
       {gorunen === 'kontrol' && <ReceteKontrol />}
       {gorunen === 'satis' && <Satis />}
       {gorunen === 'stok' && <Stok eczaci={oturum.rol === 'eczaci'} />}
+      {gorunen === 'alis' && <Alis eczaci={oturum.rol === 'eczaci'} />}
       {gorunen === 'kurallar' && <KuralKitapligi duzenleyebilir={oturum.kuralYetkisi} />}
       {gorunen === 'denetim' && <DenetimKaydiSayfasi />}
       {gorunen === 'kullanicilar' && <Kullanicilar benimId={oturum.id} />}

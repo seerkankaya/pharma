@@ -23,6 +23,7 @@ Her uyarı dayandığı kaynağı gösterir: SUT maddesi, EK-4/A listesi, Resmî
 | `apps/api` | Fastify API: oturum, kontrol, gönderim, denetim, kural kitaplığı, kullanıcılar. PostgreSQL'de saklar. Medula şimdilik sahte istemciyle |
 | `apps/api/src/vt/gocler` | Veritabanı şeması. Sunucu açılırken uygulanmamış dosyaları sırayla uygular |
 | `apps/api/src/stok` | Stok ve satış: ürün kartı, parti ve son kullanma tarihi, FEFO ile satış, imha |
+| `apps/api/src/alis` | Alış faturası, tedarikçiler, sipariş önerisi |
 | `apps/web` | React ekranları: giriş, reçete kontrol, satış, stok, kural kitaplığı, denetim kaydı, kullanıcılar |
 
 ## Çalıştırma
@@ -107,6 +108,19 @@ Uygulamadaki kuralların bir kopyası veritabanında da tetikleyici olarak durur
 - **İmha:** Miadı geçen ya da bozulan ürünü eczacı gerekçeyle stoktan düşer.
 - **Hareket kayıtları:** Stok hareketleri ve satışlar veritabanında değiştirilemez ve silinemez.
 - **Gün sınırı:** Günlük satış özeti ve "bugün" Türkiye saatine göre hesaplanır.
+
+## Alış ve sipariş
+
+- **Tedarikçiler:** Ecza depolarını eczacı ekler.
+- **Alış faturası:**
+  - Her satır parti numarası ve son kullanma tarihiyle stoğa girer.
+  - Birim fiyatlar KDV hariçtir. İskonto KDV'den önce uygulanır.
+  - Mal fazlası (MF) stoğa girer ve birim maliyete dağıtılır.
+  - Kartı olmayan ürünün kartı faturayla birlikte açılır; bunun için ad ve satış fiyatı gerekir.
+- **Tek işlem:** Fatura, yeni kartlar ve stok girişleri birlikte yazılır. Biri yazılamazsa hiçbiri yazılmaz.
+- **Tekrar engeli:** Aynı tedarikçiden aynı numaralı fatura iki kez girilemez.
+- **Değiştirilemez kayıt:** Fatura kaydı veritabanında değiştirilemez.
+- **Sipariş önerisi:** Kritik stoğa inen ürünler listelenir. Öneri, stoğu kritik stoğun iki katına tamamlar. Son tedarikçi ve son maliyet de gösterilir.
 
 Reçeteli satış (hasta katılım payı, reçete ilaçlarının stoktan düşülmesi) Medula bağlantısıyla birlikte gelecek.
 
