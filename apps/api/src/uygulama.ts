@@ -18,12 +18,15 @@ import type { KuralDeposu } from './kural-deposu.js';
 import { kuralRotalari } from './kural-rotalari.js';
 import type { MedulaIstemcisi } from './medula.js';
 import { oturumDenetimi } from './oturum.js';
+import type { StokDeposu } from './stok/stok-deposu.js';
+import { stokRotalari } from './stok/stok-rotalari.js';
 
 export interface Bagimliliklar {
   ek4a: Ek4aListesi;
   kurallar: KuralDeposu;
   kontroller: KontrolDeposu;
   hesaplar: HesapDeposu;
+  stok: StokDeposu;
   ayarlar: MotorAyarlari;
   medula: MedulaIstemcisi;
   /** Kontrol gününü verir (testlerde sabitlenir) */
@@ -103,6 +106,7 @@ export function uygulamaOlustur(b: Bagimliliklar) {
   });
 
   kuralRotalari(app, b.kurallar, b.bugun);
+  stokRotalari(app, b.stok, b.ek4a, b.bugun);
 
   app.get('/api/denetim', async (req) => b.kontroller.denetimKayitlari(req.kullanici!.eczaneId));
 
