@@ -1,4 +1,5 @@
 import type { AlisFaturasi, Tedarikci } from '../alis/alis.js';
+import { BellekCariDefteri, type CariBorc } from '../cari/cari.js';
 import type { Parti, Satis, StokHareketi, Urun } from './stok.js';
 import { partiler, StokHatasi } from './stok.js';
 
@@ -16,6 +17,8 @@ export interface StokYazimi<T> {
   fatura?: AlisFaturasi;
   /** İşlemle birlikte açılacak ürün kartları (faturada kartı olmayan ürünler) */
   yeniUrunler?: Urun[];
+  /** Veresiye satışın borcu; limit aşılırsa işlemin tamamı geri alınır */
+  cariBorc?: CariBorc;
 }
 
 export interface StokDeposu {
@@ -38,6 +41,8 @@ export interface StokDeposu {
 }
 
 export class BellekStokDeposu implements StokDeposu {
+  constructor(private readonly cari = new BellekCariDefteri()) {}
+
   private urunMap = new Map<string, Map<string, Urun>>();
   private hareketler: (StokHareketi & { eczaneId: string })[] = [];
   private satisListesi: (Satis & { eczaneId: string })[] = [];
@@ -68,6 +73,7 @@ export class BellekStokDeposu implements StokDeposu {
   islem<T>(eczaneId: string, barkodlar: string[], f: (partiler: Map<string, Parti[]>) => StokYazimi<T>): Promise<T> {
     const sonuc = this.sira.then(() => {
       const y = f(this.partiHaritasi(eczaneId, barkodlar));
+      if (y.cariBorc) this.cari.borcYaz(eczaneId, y.cariBorc);
       if (y.fatura) {
         const { tedarikciId, faturaNo } = y.fatura;
         if (this.faturaListesi.some((x) => x.eczaneId === eczaneId && x.tedarikciId === tedarikciId && x.faturaNo === faturaNo))

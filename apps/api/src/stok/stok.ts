@@ -40,7 +40,7 @@ export interface Parti {
   miktar: number;
 }
 
-export type OdemeTuru = 'nakit' | 'kart';
+export type OdemeTuru = 'nakit' | 'kart' | 'veresiye';
 
 export interface SatisKalemi {
   barkod: string;
@@ -59,6 +59,9 @@ export interface Satis {
   kullaniciId: string;
   satan: string;
   odemeTuru: OdemeTuru;
+  /** Veresiye satışta borcun yazıldığı müşteri */
+  musteriId?: string;
+  musteriAd?: string;
   kalemler: SatisKalemi[];
   toplamKurus: number;
   kdvKurus: number;
@@ -112,6 +115,7 @@ export const icKdv = (tutarKurus: number, oran: KdvOrani) => Math.round((tutarKu
 export interface SatisIstegi {
   kalemler: { barkod: string; miktar: number }[];
   odemeTuru: OdemeTuru;
+  musteriId?: string;
 }
 
 export function satisIstegiDogrula(istek: Partial<SatisIstegi> | undefined): string[] {
@@ -122,7 +126,8 @@ export function satisIstegiDogrula(istek: Partial<SatisIstegi> | undefined): str
       if (typeof k?.barkod !== 'string' || !Number.isInteger(k.miktar) || k.miktar < 1) h.push('Her kalemde barkod ve 1 ya da daha büyük tamsayı miktar olmalı');
     if (new Set(istek.kalemler.map((k) => k.barkod)).size !== istek.kalemler.length) h.push('Aynı ürün sepette iki kez olamaz; miktarını artırın');
   }
-  if (istek?.odemeTuru !== 'nakit' && istek?.odemeTuru !== 'kart') h.push('Ödeme türü nakit ya da kart olmalı');
+  if (!['nakit', 'kart', 'veresiye'].includes(istek?.odemeTuru as string)) h.push('Ödeme türü nakit, kart ya da veresiye olmalı');
+  else if (istek?.odemeTuru === 'veresiye' && !istek.musteriId) h.push('Veresiye satış için müşteri seçin');
   return [...new Set(h)];
 }
 
@@ -135,7 +140,7 @@ export function satisHazirla(
   urunler: Map<string, Urun>,
   eldekiPartiler: Map<string, Parti[]>,
   bugun: string,
-): Omit<Satis, 'id' | 'zaman' | 'kullaniciId' | 'satan'> {
+): Omit<Satis, 'id' | 'zaman' | 'kullaniciId' | 'satan' | 'musteriId' | 'musteriAd'> {
   const kalemler = istek.kalemler.map((k): SatisKalemi => {
     const u = urunler.get(k.barkod);
     if (!u) throw new StokHatasi(`${k.barkod} barkodlu ürünün kartı yok`);

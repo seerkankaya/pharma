@@ -8,6 +8,8 @@ import { PgHesapDeposu, PgKontrolDeposu, PgKuralDeposu } from '../src/vt/pg-depo
 import { PgStokDeposu } from '../src/vt/pg-stok-deposu.js';
 import { FaturaZatenVarHatasi } from '../src/stok/stok-deposu.js';
 import type { AlisFaturasi } from '../src/alis/alis.js';
+import { PgCariDeposu } from '../src/vt/pg-cari-deposu.js';
+import { CariHatasi } from '../src/cari/cari.js';
 import { StokHatasi, type StokHareketi } from '../src/stok/stok.js';
 
 // PostgreSQL depolarının testleri. Yalnızca TEST_DATABASE_URL verildiğinde çalışır;
@@ -20,7 +22,7 @@ describe.skipIf(!adres)('PostgreSQL depoları', () => {
   beforeAll(async () => {
     havuz = havuzOlustur(adres!);
     await havuz.query('drop schema public cascade; create schema public;');
-    expect(await gocleriUygula(havuz)).toEqual(['001_ilk.sql', '002_stok.sql', '003_alis.sql']);
+    expect(await gocleriUygula(havuz)).toEqual(['001_ilk.sql', '002_stok.sql', '003_alis.sql', '004_cari.sql']);
   });
   afterAll(() => havuz?.end());
 
@@ -192,5 +194,38 @@ describe.skipIf(!adres)('PostgreSQL depoları', () => {
     expect((await depo.urunler(e.id)).map((u) => u.ad)).toEqual(['Yeni']);
     expect((await depo.faturalar(e.id)).map((f) => f.faturaNo)).toEqual(['F-1']);
     await expect(havuz.query('delete from alis_faturasi')).rejects.toThrow('değiştirilemez');
+  });
+
+  it('cari: veresiye borcu satışla aynı işlemde, limit ve tahsilat kilit altında', async () => {
+    const { e, k } = await eczaneVeKullanici();
+    const cari = new PgCariDeposu(havuz);
+    const stok = new PgStokDeposu(havuz);
+    const m = await cari.musteriEkle(e.id, { adSoyad: 'Ahmet', limitKurus: 1000 });
+    expect(await cari.musteriAl(e.id, m.id)).toEqual(m);
+    const satis = (tutar: number) => {
+      const id = randomUUID();
+      const zaman = new Date().toISOString();
+      return stok.islem(e.id, [], () => ({
+        sonuc: null,
+        satis: { id, zaman, kullaniciId: k.id, satan: 'X', odemeTuru: 'veresiye' as const, kalemler: [], toplamKurus: tutar, kdvKurus: 0 },
+        cariBorc: {
+          musteriAd: 'Ahmet',
+          limitKurus: 1000,
+          hareket: { musteriId: m.id, tur: 'borc' as const, tutarKurus: tutar, satisId: id, kullaniciId: k.id, kaydeden: 'X', zaman },
+        },
+      }));
+    };
+    const sonuc = await Promise.allSettled([satis(600), satis(600)]);
+    expect(sonuc.map((x) => x.status).sort()).toEqual(['fulfilled', 'rejected']);
+    expect((await cari.musteriler(e.id))[0]).toMatchObject({ adSoyad: 'Ahmet', bakiyeKurus: 600, limitKurus: 1000 });
+    // Reddedilen satışın satış kaydı da yazılmamalı.
+    expect((await havuz.query('select count(*)::int as n from satis where eczane_id = $1', [e.id])).rows[0].n).toBe(1);
+
+    const tahsil = (tutar: number) =>
+      cari.tahsilat(e.id, { musteriId: m.id, tur: 'tahsilat', tutarKurus: tutar, odemeTuru: 'nakit', kullaniciId: k.id, kaydeden: 'X', zaman: new Date().toISOString() });
+    await expect(tahsil(700)).rejects.toBeInstanceOf(CariHatasi);
+    expect(await tahsil(600)).toBe(0);
+    expect((await cari.hareketler(e.id, m.id)).map((h) => h.tur)).toEqual(['tahsilat', 'borc']);
+    await expect(havuz.query('delete from cari_hareket')).rejects.toThrow('değiştirilemez');
   });
 });
