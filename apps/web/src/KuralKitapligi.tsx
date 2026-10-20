@@ -79,7 +79,7 @@ function kosullar(k: IlacKurali): string {
   return p.join(' · ') || '—';
 }
 
-export function KuralKitapligi() {
+export function KuralKitapligi({ duzenleyebilir }: { duzenleyebilir: boolean }) {
   const [kurallar, setKurallar] = useState<IlacKurali[]>([]);
   const [form, setForm] = useState(BOS_FORM);
   const [formAcik, setFormAcik] = useState(false);
@@ -111,8 +111,8 @@ export function KuralKitapligi() {
   }
 
   function onayla(k: IlacKurali) {
-    const onaylayan = window.prompt(`${k.id} kuralını SUT metniyle karşılaştırdınız mı? Onaylayan eczacının adı:`);
-    if (onaylayan) void islem(() => istek(`/api/kurallar/${encodeURIComponent(k.id)}/onayla`, { onaylayan }));
+    if (window.confirm(`${k.id} kuralını SUT metniyle karşılaştırdınız mı? Onay adınızla kaydedilir ve kural tüm eczanelerde kontrolde kullanılmaya başlar.`))
+      void islem(() => istek(`/api/kurallar/${encodeURIComponent(k.id)}/onayla`, {}));
   }
 
   function kapat(k: IlacKurali) {
@@ -134,14 +134,17 @@ export function KuralKitapligi() {
       <p className="soluk">
         Kontrolde yalnızca onaylı kurallar kullanılır. SUT değişince eski kuralın geçerliliğini kapatın ve yeni sürümü taslak olarak ekleyip onaylayın.
         Onaylı kural düzenlenemez ve silinemez.
+        {!duzenleyebilir && ' Kitaplığı yalnızca kural yetkisi olan eczacılar değiştirebilir.'}
       </p>
-      <div className="eylemler">
-        <button className="birincil" onClick={() => setFormAcik((a) => !a)}>
-          {formAcik ? 'Formu kapat' : 'Yeni kural ekle'}
-        </button>
-      </div>
+      {duzenleyebilir && (
+        <div className="eylemler">
+          <button className="birincil" onClick={() => setFormAcik((a) => !a)}>
+            {formAcik ? 'Formu kapat' : 'Yeni kural ekle'}
+          </button>
+        </div>
+      )}
 
-      {formAcik && (
+      {duzenleyebilir && formAcik && (
         <form className="kart form" onSubmit={kaydet}>
           <fieldset>
             <legend>Kural</legend>
@@ -256,13 +259,13 @@ export function KuralKitapligi() {
                     )}
                   </td>
                   <td className="satir-eylem">
-                    {d === 'taslak' && (
+                    {duzenleyebilir && d === 'taslak' && (
                       <>
                         <button onClick={() => onayla(k)}>Onayla</button>
                         <button onClick={() => sil(k)}>Sil</button>
                       </>
                     )}
-                    {d === 'onayli' && <button onClick={() => kapat(k)}>Geçerliliği kapat</button>}
+                    {duzenleyebilir && d === 'onayli' && <button onClick={() => kapat(k)}>Geçerliliği kapat</button>}
                   </td>
                 </tr>
               );

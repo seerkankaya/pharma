@@ -1,43 +1,44 @@
-import { mkdir, readFile, rename, writeFile } from 'node:fs/promises';
-import { dirname } from 'node:path';
 import type { IlacKurali } from '@scalpiq/sut-motoru';
+
+/** Bir kural işleminin sonucu: istemciye dönecek yanıt ve kaydedilecek ya da silinecek kurallar. */
+export interface KuralDegisikligi<T> {
+  sonuc: T;
+  kaydet?: IlacKurali[];
+  sil?: string[];
+}
 
 /** Kural kitaplığının saklandığı yer. Onaylanmış kural değiştirilmez, yalnızca geçerliliği kapatılır. */
 export interface KuralDeposu {
   listele(): Promise<IlacKurali[]>;
-  kaydet(kurallar: IlacKurali[]): Promise<void>;
+  /**
+   * Kitaplığı okuyup değiştirir. İşlemler sırayla yürür; böylece iki eczacı aynı anda
+   * çakışan iki kuralı onaylayamaz.
+   */
+  degistir<T>(islem: (kurallar: IlacKurali[]) => KuralDegisikligi<T>): Promise<T>;
 }
 
 export class BellekKuralDeposu implements KuralDeposu {
-  constructor(private kurallar: IlacKurali[] = []) {}
+  private sira: Promise<unknown> = Promise.resolve();
+
+  constructor(private kurallar: IlacKurali[] = []) {
+    this.kurallar = structuredClone(kurallar);
+  }
+
   async listele() {
     return structuredClone(this.kurallar);
   }
-  async kaydet(kurallar: IlacKurali[]) {
-    this.kurallar = structuredClone(kurallar);
-  }
-}
 
-/** Tüm kitaplık tek bir JSON dosyasında; yazma önce geçici dosyaya yapılır, sonra yer değiştirilir. */
-export class DosyaKuralDeposu implements KuralDeposu {
-  constructor(
-    private readonly yol: string,
-    private readonly baslangic: IlacKurali[] = [],
-  ) {}
-
-  async listele(): Promise<IlacKurali[]> {
-    try {
-      return JSON.parse(await readFile(this.yol, 'utf8')) as IlacKurali[];
-    } catch (e) {
-      if ((e as NodeJS.ErrnoException).code === 'ENOENT') return structuredClone(this.baslangic);
-      throw e;
-    }
-  }
-
-  async kaydet(kurallar: IlacKurali[]) {
-    await mkdir(dirname(this.yol), { recursive: true });
-    const gecici = `${this.yol}.tmp`;
-    await writeFile(gecici, `${JSON.stringify(kurallar, null, 2)}\n`, 'utf8');
-    await rename(gecici, this.yol);
+  degistir<T>(islem: (kurallar: IlacKurali[]) => KuralDegisikligi<T>): Promise<T> {
+    const sonuc = this.sira.then(() => {
+      const d = islem(structuredClone(this.kurallar));
+      const silinecek = new Set(d.sil ?? []);
+      const yeniler = new Map((d.kaydet ?? []).map((k) => [k.id, structuredClone(k)]));
+      const kalan = this.kurallar.filter((k) => !silinecek.has(k.id)).map((k) => yeniler.get(k.id) ?? k);
+      for (const [id, k] of yeniler) if (!kalan.some((x) => x.id === id)) kalan.push(k);
+      this.kurallar = kalan;
+      return d.sonuc;
+    });
+    this.sira = sonuc.catch(() => undefined);
+    return sonuc;
   }
 }

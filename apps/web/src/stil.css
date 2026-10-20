@@ -95,3 +95,10 @@ td code { font-size: 12px; color: var(--soluk); }
 td { vertical-align: top; }
 .satir-eylem { white-space: nowrap; }
 .satir-eylem button { font: inherit; font-size: 13px; padding: 4px 10px; margin: 0 4px 4px 0; border: 1px solid var(--cizgi); border-radius: 6px; background: var(--kart); color: inherit; cursor: pointer; }
+
+.hesap { display: flex; align-items: center; gap: 10px; font-size: 14px; }
+.hesap button { font: inherit; font-size: 13px; padding: 4px 10px; border: 1px solid var(--cizgi); border-radius: 6px; background: var(--kart); color: inherit; cursor: pointer; }
+.giris { max-width: 380px; padding-top: 12vh; }
+.giris .form { display: flex; flex-direction: column; gap: 12px; }
+.giris h1 { margin: 0; }
+.giris p { margin: 0; }

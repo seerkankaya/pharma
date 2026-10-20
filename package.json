@@ -10,7 +10,9 @@
     "test": "vitest run",
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "api": "npm run dev -w @scalpiq/api",
-    "web": "npm run dev -w @scalpiq/web"
+    "web": "npm run dev -w @scalpiq/web",
+    "kurulum": "tsx apps/api/src/kurulum.ts",
+    "test:vt": "TEST_DATABASE_URL=${TEST_DATABASE_URL:-postgres://scalpiq:scalpiq@127.0.0.1:5432/scalpiq_test} vitest run apps/api/test/vt.test.ts"
   },
   "devDependencies": {
     "@types/node": "^22.10.2",
