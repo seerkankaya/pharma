@@ -81,6 +81,11 @@ export interface Ek4aKaydi {
   barkod: string;
   ad: string;
   esdegerGrubu?: string;
+  /**
+   * İlacın listede pasif olduğu dönemler. SGK bir ilacı pasifleyip sonra yeniden aktifleyebilir;
+   * pasif dönemde yazılan reçetenin bedeli ödenmez. Bitişi olmayan aralık hâlâ pasif demektir.
+   */
+  pasifAraliklari?: { baslangic: string; bitis?: string }[];
 }
 
 export interface Ek4aListesi {
@@ -120,6 +125,21 @@ export interface IlacKurali {
    * (örn. LDL değeri, KMY T skoru). Eczacı her biri için raporu kontrol ettiğini onaylar.
    */
   raporIcerigi?: string[];
+  /**
+   * Raporsuz yazılabilmesinin koşulu (örn. "stent sonrası taburculuktan itibaren en fazla 4 hafta").
+   * Raporsuz yazılan reçetede eczacıya kontrol ettirilir.
+   */
+  raporsuzKosul?: string;
+  /**
+   * Yüksek dozlu formlar için raporu yalnızca bu branşlar düzenleyebilir (örn. atorvastatin 40 mg ve üzeri).
+   * Doz ilacın adındaki "MG" değerinden okunur.
+   */
+  yuksekDoz?: {
+    asgariMg: number;
+    raporDuzenleyenBranslar: string[];
+    /** İlk raporlardan sonraki devam raporlarını da düzenleyebilen branşlar; eczacıya devam raporu olduğu kontrol ettirilir */
+    devamRaporuBranslari?: string[];
+  };
   receteEdenBranslar?: string[];
   /** ICD-10 önekleri; rapordaki tanılardan en az biri bunlardan biriyle başlamalı */
   izinliTanilar?: string[];

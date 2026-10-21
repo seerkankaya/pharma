@@ -35,6 +35,13 @@ export function kuralDogrula(k: IlacKurali): string[] {
   if (k.raporAzamiGun !== undefined && !(Number.isInteger(k.raporAzamiGun) && k.raporAzamiGun > 0))
     hatalar.push('Azami rapor süresi pozitif tam sayı (gün) olmalı');
   for (const r of k.raporIcerigi ?? []) if (!r.trim()) hatalar.push('Rapor içeriği maddeleri boş olamaz');
+  if (k.raporsuzKosul !== undefined && (!k.raporsuzKosul.trim() || !k.raporsuzYazabilenBranslar?.length))
+    hatalar.push('Raporsuz yazılma koşulu yalnızca raporsuz yazabilen branş verildiyse ve boş değilse girilir');
+  if (k.yuksekDoz) {
+    if (!k.raporGerekli) hatalar.push('Yüksek doz koşulu verildiyse "rapor gerekli" işaretlenmeli');
+    if (!(k.yuksekDoz.asgariMg > 0)) hatalar.push('Yüksek doz sınırı (mg) pozitif olmalı');
+    if (!k.yuksekDoz.raporDuzenleyenBranslar?.length) hatalar.push('Yüksek doz için raporu düzenleyebilen branşlar girilmeli');
+  }
   return hatalar;
 }
 

@@ -85,6 +85,18 @@ function bransVar(izinli: string[], brans: string): boolean {
   return izinli.some((i) => b === normalize(i) || b.startsWith(`${normalize(i)} `));
 }
 
+/**
+ * İlacın adındaki tek etken madde dozu (mg). Ad dozu hiç içermiyorsa undefined; kombine ürün gibi birden çok
+ * doz varsa ("10/40 MG", "5 MG/20 MG") hangisinin aranan etken maddeye ait olduğu bilinemeyeceğinden 'belirsiz'.
+ */
+export function adindakiMg(ad: string): number | undefined | 'belirsiz' {
+  const a = normalize(ad).replace(/,/g, '.');
+  if (/\d\s*\/\s*\d/.test(a)) return 'belirsiz';
+  const dozlar = [...a.matchAll(/(\d+(?:\.\d+)?)\s*MG\b/g)].map((m) => Number(m[1]));
+  if (dozlar.length === 0) return undefined;
+  return new Set(dozlar).size === 1 ? dozlar[0] : 'belirsiz';
+}
+
 /** Raporlar arasından kuralın istediği koşulları en çok karşılayanı seçer. */
 function enUygunRapor(b: KalemBaglami): Rapor | undefined {
   const tarih = b.girdi.recete.tarih;
@@ -104,7 +116,14 @@ export const kalemKurallari: KalemKurali[] = [
     id: 'EK4A_LISTE',
     baslik: 'İlaç bedeli ödenecek ilaçlar listesinde mi',
     calistir(b) {
-      if (b.girdi.ek4a.bul(b.kalem.barkod)) return [];
+      const kayit = b.girdi.ek4a.bul(b.kalem.barkod);
+      const ek4aKaynagi: Kaynak = { tur: 'EK-4/A', aciklama: `Bedeli Ödenecek İlaçlar Listesi, yayım tarihi ${b.girdi.ek4a.yayimTarihi}` };
+      if (kayit) {
+        const pasif = kayit.pasifAraliklari?.find((a) => aralikta(b.girdi.recete.tarih, a.baslangic, a.bitis));
+        if (!pasif) return [];
+        const donem = pasif.bitis ? `${pasif.baslangic} – ${pasif.bitis} arasında` : `${pasif.baslangic} tarihinden beri`;
+        return [bulgu(b, 'EK4A_LISTE', 'kirmizi', `İlaç EK-4/A listesinde ${donem} pasif; reçete tarihinde bedeli SGK tarafından ödenmez.`, [ek4aKaynagi])];
+      }
       return [
         bulgu(b, 'EK4A_LISTE', 'kirmizi', `Barkod ${b.kalem.barkod} güncel EK-4/A listesinde yok; bedeli SGK tarafından ödenmez.`, [
           {
@@ -223,6 +242,47 @@ export const kalemKurallari: KalemKurali[] = [
       const sure = gunFarki(rapor.baslangic, rapor.bitis) + 1;
       if (sure <= azami) return [];
       return [bulgu(b, 'RAPOR_AZAMI_SURE', 'kirmizi', `${rapor.no} numaralı rapor ${sure} günlük; bu ilaç için rapor en fazla ${azami} gün olabilir.`)];
+    },
+  },
+  {
+    id: 'RAPORSUZ_KOSUL',
+    baslik: 'Raporsuz yazıldıysa raporsuz yazılma koşulu sağlanıyor mu',
+    calistir(b) {
+      const kosul = b.kural?.raporsuzKosul;
+      if (!kosul || !raporsuzYazabilir(b) || b.raporlar.length > 0) return [];
+      return [bulgu(b, 'RAPORSUZ_KOSUL', 'sari', `Raporsuz yazılmış. Raporsuz ödenmesi için: ${kosul}. Reçete ya da epikrizden kontrol edin.`)];
+    },
+  },
+  {
+    id: 'YUKSEK_DOZ_BRANS',
+    baslik: 'Yüksek dozlu formun raporunu yetkili branş mı düzenlemiş',
+    calistir(b) {
+      const yd = b.kural?.yuksekDoz;
+      const rapor = enUygunRapor(b);
+      if (!yd || !rapor || raporsuzYazabilir(b)) return [];
+      const mg = adindakiMg(b.kalem.ad);
+      if (mg === 'belirsiz')
+        return [
+          bulgu(b, 'YUKSEK_DOZ_BRANS', 'sari', `Dozu ilacın adından okunamadı. ${yd.asgariMg} mg ve üzeriyse raporu ${yd.raporDuzenleyenBranslar.join(', ')} düzenlemiş olmalı.`),
+        ];
+      if (mg === undefined || mg < yd.asgariMg || rapor.duzenleyenBranslar.some((x) => bransVar(yd.raporDuzenleyenBranslar, x))) return [];
+      if (yd.devamRaporuBranslari?.length && rapor.duzenleyenBranslar.some((x) => bransVar(yd.devamRaporuBranslari!, x)))
+        return [
+          bulgu(
+            b,
+            'YUKSEK_DOZ_BRANS',
+            'sari',
+            `${mg} mg formun raporunu ${rapor.duzenleyenBranslar.join(', ')} düzenlemiş. Bu yalnızca devam raporuysa geçerli; ilk raporu ${yd.raporDuzenleyenBranslar.join(', ')} düzenlemiş olmalı.`,
+          ),
+        ];
+      return [
+        bulgu(
+          b,
+          'YUKSEK_DOZ_BRANS',
+          'kirmizi',
+          `${mg} mg formun raporunu yalnızca ${yd.raporDuzenleyenBranslar.join(', ')} düzenleyebilir; rapor ${rapor.duzenleyenBranslar.join(', ') || 'branşı belirtilmemiş'} tarafından düzenlenmiş.`,
+        ),
+      ];
     },
   },
   {

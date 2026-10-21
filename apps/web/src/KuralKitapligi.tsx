@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState, type FormEvent } from 'react';
-import { normalize, type IlacKurali, type Kaynak, type RaporTuru, type ReceteTuru } from '@scalpiq/sut-motoru';
+import { normalize, SUT_SURUMU, type IlacKurali, type Kaynak, type RaporTuru, type ReceteTuru } from '@scalpiq/sut-motoru';
 import { istek, IstekHatasi } from './api';
 import { Ek4aKarti } from './Ek4a';
 
@@ -21,6 +21,15 @@ const liste = (s: string) =>
     .map((x) => x.trim())
     .filter(Boolean);
 
+interface TaslakDurumu {
+  toplam: number;
+  eksik: number;
+  guncellenecek: number;
+  yeniSurum: string[];
+}
+
+const SUT_SURUMU_ADI = SUT_SURUMU.split('-').reverse().join('.');
+
 const BOS_FORM = {
   id: '',
   etkenMadde: '',
@@ -38,6 +47,10 @@ const BOS_FORM = {
   raporsuzBranslar: '',
   raporAzamiGun: '',
   raporIcerigi: '',
+  raporsuzKosul: '',
+  yuksekDozMg: '',
+  yuksekDozBranslar: '',
+  devamBranslari: '',
   receteBranslari: '',
   tanilar: '',
   maksDoz: '',
@@ -74,6 +87,14 @@ function formdanKural(f: typeof BOS_FORM): IlacKurali {
           .map((x) => x.trim())
           .filter(Boolean)
       : undefined,
+    raporsuzKosul: f.raporsuzKosul.trim() || undefined,
+    yuksekDoz: f.yuksekDozMg.trim()
+      ? {
+          asgariMg: Number(f.yuksekDozMg),
+          raporDuzenleyenBranslar: liste(f.yuksekDozBranslar),
+          ...(liste(f.devamBranslari).length ? { devamRaporuBranslari: liste(f.devamBranslari) } : {}),
+        }
+      : undefined,
     receteEdenBranslar: dizi(f.receteBranslari),
     izinliTanilar: dizi(f.tanilar.toUpperCase()),
     maksGunlukDoz: sayi(f.maksDoz),
@@ -100,6 +121,10 @@ function kuraldanForm(k: IlacKurali): typeof BOS_FORM {
     raporsuzBranslar: (k.raporsuzYazabilenBranslar ?? []).join(', '),
     raporAzamiGun: k.raporAzamiGun ? String(k.raporAzamiGun) : '',
     raporIcerigi: (k.raporIcerigi ?? []).join('\n'),
+    raporsuzKosul: k.raporsuzKosul ?? '',
+    yuksekDozMg: k.yuksekDoz ? String(k.yuksekDoz.asgariMg) : '',
+    yuksekDozBranslar: (k.yuksekDoz?.raporDuzenleyenBranslar ?? []).join(', '),
+    devamBranslari: (k.yuksekDoz?.devamRaporuBranslari ?? []).join(', '),
     receteBranslari: (k.receteEdenBranslar ?? []).join(', '),
     tanilar: (k.izinliTanilar ?? []).join(', '),
     maksDoz: k.maksGunlukDoz ? String(k.maksGunlukDoz) : '',
@@ -114,6 +139,7 @@ function kosullar(k: IlacKurali): string {
   if (k.raporDuzenleyenBranslar?.length) p.push(`rapor: ${k.raporDuzenleyenBranslar.join(', ')}`);
   if (k.raporsuzYazabilenBranslar?.length) p.push(`raporsuz: ${k.raporsuzYazabilenBranslar.join(', ')}`);
   if (k.raporAzamiGun) p.push(`rapor en fazla ${k.raporAzamiGun} gün`);
+  if (k.yuksekDoz) p.push(`${k.yuksekDoz.asgariMg} mg ve üzeri: rapor ${k.yuksekDoz.raporDuzenleyenBranslar.join(', ')}`);
   if (k.receteEdenBranslar?.length) p.push(`reçete: ${k.receteEdenBranslar.join(', ')}`);
   if (k.izinliTanilar?.length) p.push(`tanı: ${k.izinliTanilar.join(', ')}`);
   if (k.maksGunlukDoz) p.push(`en fazla ${k.maksGunlukDoz}/gün`);
@@ -130,7 +156,7 @@ export function KuralKitapligi({ duzenleyebilir }: { duzenleyebilir: boolean }) 
   const [duzenlenen, setDuzenlenen] = useState<string>();
   const [arama, setArama] = useState('');
   const [suzgec, setSuzgec] = useState<KuralDurumu | ''>('');
-  const [taslak, setTaslak] = useState<{ toplam: number; eksik: number }>();
+  const [taslak, setTaslak] = useState<TaslakDurumu>();
   const [bilgi, setBilgi] = useState<string>();
   const [hata, setHata] = useState<{ metin: string; ayrinti?: string[] }>();
 
@@ -138,7 +164,7 @@ export function KuralKitapligi({ duzenleyebilir }: { duzenleyebilir: boolean }) 
     () =>
       Promise.all([
         istek<IlacKurali[]>('/api/kurallar').then(setKurallar),
-        istek<{ toplam: number; eksik: number }>('/api/kurallar/sut-taslaklari').then(setTaslak),
+        istek<TaslakDurumu>('/api/kurallar/sut-taslaklari').then(setTaslak),
       ]),
     [],
   );
@@ -180,9 +206,16 @@ export function KuralKitapligi({ duzenleyebilir }: { duzenleyebilir: boolean }) 
   }
 
   async function taslaklariEkle() {
-    let eklenen = 0;
-    if (await islem(async () => (eklenen = (await istek<{ eklenen: number }>('/api/kurallar/sut-taslaklari', {})).eklenen)))
-      setBilgi(`${eklenen} SUT taslağı kitaplığa eklendi. Her birini SUT metniyle karşılaştırıp onaylayın; onaylanana kadar kontrolde kullanılmaz.`);
+    let r = { eklenen: 0, guncellenen: 0, yeniSurum: [] as string[] };
+    if (await islem(async () => (r = await istek<typeof r>('/api/kurallar/sut-taslaklari', {})))) {
+      const parcalar = [
+        r.eklenen && `${r.eklenen} taslak eklendi`,
+        r.guncellenen && `${r.guncellenen} taslak güncel SUT metnine göre güncellendi`,
+        r.yeniSurum.length &&
+          `${r.yeniSurum.length} onaylı kuralın yeni sürüm taslağı açıldı (eski onaylı kuralı dünkü tarihle kapatıp yenisini onaylayın)`,
+      ].filter(Boolean);
+      setBilgi(`${parcalar.join(', ')}. Taslaklar siz onaylayana kadar kontrolde kullanılmaz.`);
+    }
   }
 
   function onayla(k: IlacKurali) {
@@ -219,17 +252,27 @@ export function KuralKitapligi({ duzenleyebilir }: { duzenleyebilir: boolean }) 
         {!duzenleyebilir && ' Kitaplığı yalnızca kural yetkisi olan eczacılar değiştirebilir.'}
       </p>
       <Ek4aKarti yukleyebilir={duzenleyebilir} />
-      {duzenleyebilir && !!taslak?.eksik && (
+      {duzenleyebilir && !!taslak && (taslak.eksik > 0 || taslak.guncellenecek > 0 || taslak.yeniSurum.length > 0) && (
         <section className="kart taslak-bandi">
           <div>
-            <strong>SUT taslak kuralları hazır: {taslak.eksik} etken madde</strong>
+            <strong>
+              Güncel SUT ({SUT_SURUMU_ADI}) taslakları hazır:{' '}
+              {[
+                taslak.eksik && `${taslak.eksik} yeni`,
+                taslak.guncellenecek && `${taslak.guncellenecek} güncellenecek`,
+                taslak.yeniSurum.length && `${taslak.yeniSurum.length} onaylı kuralın yeni sürümü`,
+              ]
+                .filter(Boolean)
+                .join(', ')}
+            </strong>
             <p className="soluk">
-              Statinler, yeni oral antikoagülanlar, diyabet ilaçları, montelukast, demans ve osteoporoz ilaçları için SUT 4.2 hükümlerinden kodlandı. Kitaplığa
-              taslak olarak eklenir; siz onaylayana kadar kontrolde kullanılmaz.
+              Statinler, ezetimib, antikoagülanlar ve antiagreganlar, diyabet ilaçları, montelukast, demans ve osteoporoz ilaçları için SUT'un güncel metninden
+              kodlandı. Onaylanmamış taslaklar güncel metne göre değiştirilir; onaylı kurallarınız değişmez, onlar için yeni sürüm taslağı açılır. Siz onaylayana
+              kadar hiçbiri kontrolde kullanılmaz.
             </p>
           </div>
           <button className="birincil" onClick={taslaklariEkle}>
-            Taslakları ekle
+            Taslakları getir
           </button>
         </section>
       )}
@@ -295,6 +338,13 @@ export function KuralKitapligi({ duzenleyebilir }: { duzenleyebilir: boolean }) 
               Raporda yazılı olması gerekenler (her satıra bir madde)
               <textarea placeholder="Örn. son 6 ay içindeki LDL değerleri" {...alan('raporIcerigi')} />
             </label>
+            <label className="genis">
+              Raporsuz yazılma koşulu
+              <input placeholder="Örn. stent sonrası taburculuktan itibaren en fazla 4 haftalık doz" {...alan('raporsuzKosul')} />
+            </label>
+            <label>Yüksek doz sınırı (mg)<input type="number" step="any" min="0" placeholder="Örn. 40" {...alan('yuksekDozMg')} /></label>
+            <label>Yüksek dozun raporunu düzenleyen branşlar<input placeholder="virgülle ayırın" {...alan('yuksekDozBranslar')} /></label>
+            <label>Yalnızca devam raporu düzenleyebilenler<input placeholder="Örn. Aile Hekimliği" {...alan('devamBranslari')} /></label>
             <label>Reçete eden branşlar<input placeholder="boşsa tüm hekimler" {...alan('receteBranslari')} /></label>
             <label>İzinli ICD-10 tanıları<input placeholder="I25, I21" {...alan('tanilar')} /></label>
             <label>Azami günlük doz<input type="number" step="any" min="0" {...alan('maksDoz')} /></label>
@@ -367,11 +417,12 @@ export function KuralKitapligi({ duzenleyebilir }: { duzenleyebilir: boolean }) 
                   <td>
                     <strong>{k.etkenMadde}</strong>
                     <div className="soluk">{k.aciklama}</div>
-                    {k.raporIcerigi?.length ? (
+                    {k.raporIcerigi?.length || k.raporsuzKosul ? (
                       <ul className="rapor-icerigi">
-                        {k.raporIcerigi.map((r) => (
+                        {k.raporIcerigi?.map((r) => (
                           <li key={r}>Raporda: {r}</li>
                         ))}
+                        {k.raporsuzKosul && <li>Raporsuz yazıldıysa: {k.raporsuzKosul}</li>}
                       </ul>
                     ) : null}
                     <code>{k.id}</code>

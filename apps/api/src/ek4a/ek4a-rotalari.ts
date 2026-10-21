@@ -45,12 +45,13 @@ export function ek4aRotalari(app: FastifyInstance, depo: Ek4aDeposu, liste: Degi
         return reply.code(400).send({ hata: `Dosya okunamadı: ${(e as Error).message}` });
       }
       const { kayitlar, tekrarlar } = tekillestir(
-        okunan.kayitlar.map(({ barkod, ad, kamuNo, esdegerGrubu, eskiBarkodlar }) => ({
+        okunan.kayitlar.map(({ barkod, ad, kamuNo, esdegerGrubu, eskiBarkodlar, pasifAraliklari }) => ({
           barkod,
           ad,
           eskiBarkodlar,
           ...(kamuNo ? { kamuNo } : {}),
           ...(esdegerGrubu ? { esdegerGrubu } : {}),
+          ...(pasifAraliklari?.length ? { pasifAraliklari } : {}),
         })),
       );
       if (kayitlar.length === 0) return reply.code(400).send({ hata: 'Dosyada geçerli barkodlu ilaç bulunamadı', uyarilar: okunan.uyarilar.slice(0, 20) });
