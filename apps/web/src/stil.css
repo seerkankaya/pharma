@@ -394,3 +394,15 @@ table.gunluk td { padding-top: 7px; padding-bottom: 7px; }
 .taslak-bandi { display: flex; gap: 16px; align-items: center; justify-content: space-between; flex-wrap: wrap; }
 .taslak-bandi p { margin: 4px 0 0; }
 ul.rapor-icerigi { margin: 4px 0 0; padding-left: 18px; color: var(--soluk); font-size: 13px; }
+
+/* ---------- Elle reçete ---------- */
+
+.elle-recete h3 { font-size: 15px; margin: 18px 0 10px; }
+.elle-recete h3 label.kutu { font-weight: 650; }
+.elle-tablo { overflow-x: auto; margin-bottom: 10px; }
+.elle-kalemler td { padding: 4px 6px 4px 0; }
+.elle-kalemler input { width: 100%; min-width: 90px; padding: 7px 9px; }
+.elle-kalemler td:nth-child(1) input { min-width: 150px; }
+.elle-kalemler td:nth-child(2) input { min-width: 220px; }
+.elle-kalemler td:nth-child(3) input { min-width: 160px; }
+.elle-not { grid-column: 1 / -1; margin: 0; }
