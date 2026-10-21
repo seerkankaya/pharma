@@ -7,6 +7,8 @@ interface Kasa {
   nakitTahsilatKurus: number;
   kartSatisKurus: number;
   kartTahsilatKurus: number;
+  nakitGelirKurus?: number;
+  nakitGiderKurus?: number;
   beklenenNakitKurus: number;
   beklenenKartKurus: number;
 }
@@ -361,6 +363,18 @@ function GunRaporuBolumu({ bugun }: { bugun: string }) {
                 <dd>{tl(rapor.kasa.nakitSatisKurus)}</dd>
                 <dt>Nakit tahsilat (veresiye)</dt>
                 <dd>{tl(rapor.kasa.nakitTahsilatKurus)}</dd>
+                {!!rapor.kasa.nakitGelirKurus && (
+                  <>
+                    <dt>Diğer nakit gelir</dt>
+                    <dd>{tl(rapor.kasa.nakitGelirKurus)}</dd>
+                  </>
+                )}
+                {!!rapor.kasa.nakitGiderKurus && (
+                  <>
+                    <dt>Kasadan ödenen gider</dt>
+                    <dd>−{tl(rapor.kasa.nakitGiderKurus)}</dd>
+                  </>
+                )}
                 <dt>
                   <strong>Kasada olması gereken</strong>
                 </dt>

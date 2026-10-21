@@ -29,9 +29,12 @@ import { BellekEk4aDeposu, DegisenEk4a, type Ek4aDeposu } from './ek4a/ek4a.js';
 import { ek4aRotalari } from './ek4a/ek4a-rotalari.js';
 import { bellekBelgeDepolari, type BelgeDeposuUretici } from './belge-deposu.js';
 import { SahteIts, type ItsIstemcisi } from './its/its.js';
+import type { KasaHareketi } from './gelir-gider/gelir-gider.js';
+import type { DepoOdemesi } from './depo/depo.js';
 import { itsRotalari } from './its/its-rotalari.js';
 import { depoRotalari } from './depo/depo-rotalari.js';
 import { emanetRotalari } from './emanet/emanet-rotalari.js';
+import { gelirGiderRotalari, gunlukKasaEtkisi } from './gelir-gider/gelir-gider-rotalari.js';
 
 export interface Bagimliliklar {
   /** Kontrolde kullanılan EK-4/A. DegisenEk4a verilirse yüklenen yeni liste sunucu yeniden başlamadan geçerli olur. */
@@ -134,11 +137,15 @@ export function uygulamaOlustur(b: Bagimliliklar) {
   cariRotalari(app, b.cari);
   alisRotalari(app, b.stok, ek4a, b.bugun);
   ek4aRotalari(app, b.ek4aDeposu ?? new BellekEk4aDeposu(), ek4a, b.bugun);
-  raporRotalari(app, b.stok, b.cari, b.gunSonu, b.bugun);
   const belgeler = b.belgeler ?? bellekBelgeDepolari();
+  const kasaHareketleri = belgeler<KasaHareketi>('kasa_hareketi');
+  const depoOdemeleri = belgeler<DepoOdemesi>('depo_odeme');
+  const gunKapaliMi = async (eczaneId: string, gun: string) => !!(await b.gunSonu.al(eczaneId, gun));
+  raporRotalari(app, b.stok, b.cari, b.gunSonu, b.bugun, gunlukKasaEtkisi(kasaHareketleri, depoOdemeleri));
   itsRotalari(app, { tekiller: belgeler('its_tekil'), bildirimler: belgeler('its_bildirim') }, b.its ?? new SahteIts(), b.stok, b.bugun);
-  depoRotalari(app, b.stok, { iadeler: belgeler('depo_iade'), odemeler: belgeler('depo_odeme') }, b.bugun);
+  depoRotalari(app, b.stok, { iadeler: belgeler('depo_iade'), odemeler: depoOdemeleri }, b.bugun, gunKapaliMi);
   emanetRotalari(app, b.stok, b.cari, belgeler('emanet'), b.bugun);
+  gelirGiderRotalari(app, kasaHareketleri, gunKapaliMi, b.bugun);
 
   app.get('/api/denetim', async (req) => b.kontroller.denetimKayitlari(req.kullanici!.eczaneId));
 
