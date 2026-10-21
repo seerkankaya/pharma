@@ -16,8 +16,8 @@ export interface Urun {
   kritikStok?: number;
 }
 
-/** iade: ecza deposuna geri gönderilen ürün */
-export type HareketTuru = 'giris' | 'satis' | 'imha' | 'iade';
+/** iade: ecza deposuna geri gönderilen ürün; emanet: emanet olarak verilen ya da teslim edilen ürün */
+export type HareketTuru = 'giris' | 'satis' | 'imha' | 'iade' | 'emanet';
 
 export interface StokHareketi {
   barkod: string;
