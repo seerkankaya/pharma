@@ -2,6 +2,7 @@ import type { AlisFaturasi, Tedarikci } from '../alis/alis.js';
 import { BellekCariDefteri, type CariBorc } from '../cari/cari.js';
 import type { Parti, Satis, StokHareketi, Urun } from './stok.js';
 import { partiler, StokHatasi } from './stok.js';
+import type { Belge, BelgeDeposuUretici, BellekBelgeDeposu } from '../belge-deposu.js';
 
 export class FaturaZatenVarHatasi extends StokHatasi {
   constructor(faturaNo: string) {
@@ -19,6 +20,8 @@ export interface StokYazimi<T> {
   yeniUrunler?: Urun[];
   /** Veresiye satışın borcu; limit aşılırsa işlemin tamamı geri alınır */
   cariBorc?: CariBorc;
+  /** Stok hareketleriyle aynı işlemde yazılacak modül belgeleri (örneğin depo iade faturası) */
+  belgeler?: { tablo: string; belge: Belge }[];
 }
 
 export interface StokDeposu {
@@ -43,7 +46,10 @@ export interface StokDeposu {
 }
 
 export class BellekStokDeposu implements StokDeposu {
-  constructor(private readonly cari = new BellekCariDefteri()) {}
+  constructor(
+    private readonly cari = new BellekCariDefteri(),
+    private readonly belgeDepolari?: BelgeDeposuUretici,
+  ) {}
 
   private urunMap = new Map<string, Map<string, Urun>>();
   private hareketler: (StokHareketi & { eczaneId: string })[] = [];
@@ -76,6 +82,7 @@ export class BellekStokDeposu implements StokDeposu {
     const sonuc = this.sira.then(() => {
       const y = f(this.partiHaritasi(eczaneId, barkodlar));
       if (y.cariBorc) this.cari.borcYaz(eczaneId, y.cariBorc);
+      if (y.belgeler?.length && !this.belgeDepolari) throw new Error('Belge yazmak için stok deposuna belge depoları verilmeli');
       if (y.fatura) {
         const { tedarikciId, faturaNo } = y.fatura;
         if (this.faturaListesi.some((x) => x.eczaneId === eczaneId && x.tedarikciId === tedarikciId && x.faturaNo === faturaNo))
@@ -85,6 +92,7 @@ export class BellekStokDeposu implements StokDeposu {
       for (const u of y.yeniUrunler ?? []) void this.urunKaydet(eczaneId, u);
       if (y.satis) this.satisListesi.push(structuredClone({ ...y.satis, eczaneId }));
       for (const h of y.hareketler ?? []) this.hareketler.push({ ...h, eczaneId });
+      for (const { tablo, belge } of y.belgeler ?? []) (this.belgeDepolari!(tablo) as BellekBelgeDeposu<Belge>).hemenYaz(eczaneId, [belge]);
       return y.sonuc;
     });
     this.sira = sonuc.catch(() => undefined);

@@ -8,6 +8,7 @@ import { BellekCariDeposu } from '../src/cari/cari.js';
 import { BellekGunSonuDeposu } from '../src/rapor/rapor.js';
 import { uygulamaOlustur } from '../src/uygulama.js';
 import { SahteIts } from '../src/its/its.js';
+import { bellekBelgeDepolari } from '../src/belge-deposu.js';
 
 export const PAROLA = 'cok-gizli-parola';
 
@@ -36,7 +37,8 @@ export async function kur(kurallar: IlacKurali[] = []) {
   const its = new SahteIts();
   const kontroller = new BellekKontrolDeposu();
   const cari = new BellekCariDeposu();
-  const stok = new BellekStokDeposu(cari.defter);
+  const belgeler = bellekBelgeDepolari();
+  const stok = new BellekStokDeposu(cari.defter, belgeler);
   const parolaOzeti = await parolaOzetle(PAROLA);
   const kaya = await hesaplar.eczaneEkle('Kaya Eczanesi');
   const deniz = await hesaplar.eczaneEkle('Deniz Eczanesi');
@@ -58,6 +60,7 @@ export async function kur(kurallar: IlacKurali[] = []) {
     ayarlar: varsayilanAyarlar,
     medula,
     its,
+    belgeler,
     bugun: () => '2026-10-20',
   });
   return { app, medula, its, kontroller, stok, hesaplar, kullanicilar, eczaneler: { kaya, deniz } };

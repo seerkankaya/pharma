@@ -16,12 +16,13 @@ export interface Urun {
   kritikStok?: number;
 }
 
-export type HareketTuru = 'giris' | 'satis' | 'imha';
+/** iade: ecza deposuna geri gönderilen ürün */
+export type HareketTuru = 'giris' | 'satis' | 'imha' | 'iade';
 
 export interface StokHareketi {
   barkod: string;
   tur: HareketTuru;
-  /** Girişte artı, satış ve imhada eksi */
+  /** Girişte artı, satış, imha ve iadede eksi */
   miktar: number;
   partiNo: string;
   /** Son kullanma tarihi (YYYY-AA-GG) */

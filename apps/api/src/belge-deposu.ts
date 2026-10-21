@@ -45,6 +45,11 @@ export class BellekBelgeDeposu<T extends Belge> implements BelgeDeposu<T> {
     return b && kopya(b);
   }
 
+  /** Başka bir bellek deposunun işlemi içinden (stok işlemi gibi) eşzamanlı yazım. */
+  hemenYaz(eczaneId: string, belgeler: T[]) {
+    for (const b of belgeler) this.eczane(eczaneId).set(b.id, kopya(b));
+  }
+
   degistir<S>(eczaneId: string, idler: string[], f: (mevcut: Map<string, T>) => BelgeYazimi<S, T>): Promise<S> {
     const is = this.sira.then(() => {
       const e = this.eczane(eczaneId);
