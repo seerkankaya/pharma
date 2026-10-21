@@ -159,9 +159,39 @@ Kurallar tüm eczanelerde ortaktır ve veritabanında tutulur. Kitaplık boşsa 
 
 Onaylı kural düzenlenemez ve silinemez; her uyarı ve denetim kaydı dayandığı kuralın kimliğini (`ilacKuraliId`) taşır.
 
+### SUT taslak kuralları
+
+ScalpIQ, en çok kesinti görülen ilaç grupları için SUT 4.2 hükümlerinden kodlanmış taslak kurallarla gelir. Kural kitaplığındaki **Taslakları ekle** düğmesi bunları taslak olarak ekler:
+
+| Grup | SUT | Etken maddeler |
+| --- | --- | --- |
+| Statinler | 4.2.28 | atorvastatin, rosuvastatin, simvastatin, pravastatin, fluvastatin, pitavastatin |
+| Yeni oral antikoagülanlar | 4.2.15.D | dabigatran, rivaroksaban, apiksaban, edoksaban |
+| DPP-4 inhibitörleri | 4.2.38 | sitagliptin, vildagliptin, saksagliptin, linagliptin, alogliptin |
+| Analog insülinler, pioglitazon, glinidler | 4.2.38 | insülin glarjin, detemir, degludek, aspart, lispro, glulisin; pioglitazon; repaglinid, nateglinid |
+| Lökotrien antagonistleri | 4.2.24.A | montelukast, zafirlukast |
+| Demans | EK-4/F | donepezil, rivastigmin, galantamin, memantin |
+| Osteoporoz | 4.2.17 | alendronat, risedronat, ibandronat, zoledronik asit, raloksifen, denosumab |
+
+- Metinler resmî kaynaktan değil, SUT'u yeniden yayımlayan ilaç rehberi sitelerinden okunarak kodlandı. Her taslağın açıklaması dayandığı fıkrayı özetler. **Onaylamadan önce güncel SUT metniyle karşılaştırın**; taslak onaylanana kadar kontrolde kullanılmaz ve onaylanmadan önce düzenlenebilir.
+- Motorun reçeteden denetleyemediği koşullar (LDL değeri, KMY ölçümü, INR geçmişi gibi) "raporda yazılı olması gerekenler" olarak tutulur. Kontrol bunları sarı uyarı olarak gösterir; eczacı raporda gördüğünü gerekçeyle onaylar.
+- "X uzmanlarınca veya bu uzmanların raporuyla tüm hekimlerce" kalıbı desteklenir: uzman raporsuz yazabilir, diğer hekim rapor ister.
+- Etken madde eşleşmesi tuz adını ve Türkçe harf farklarını tolere eder ("ATORVASTATİN KALSİYUM" → ATORVASTATIN kuralı). Branş eşleşmesi kısa adla yapılır ("Endokrinoloji" → "Endokrinoloji ve Metabolizma Hastalıkları").
+- Klopidogrel, tikagrelor, prasugrel ve kırmızı/yeşil reçete listeleri bu sürümde yok: metinleri yeterince güvenilir biçimde doğrulanamadı.
+
+### EK-4/A listesi
+
+Kural yetkisi olan eczacı, SGK'nın yayımladığı EK-4/A Excel dosyasını kural kitaplığı sayfasından yükler. Liste tüm eczanelerde ortaktır.
+
+- Sütunlar başlık adına göre bulunur; SGK sütun sırasını değiştirse de okunur. Eski barkodlar da aynı ilaca yönlenir.
+- Her yükleme yeni bir sürümdür; eski sürümler silinmez. Kontrol, en son yayım tarihli sürümle yapılır ve sunucu yeniden başlatılmadan geçerli olur.
+- Daha eski tarihli liste yüklenemez. Yeni liste eskisinin yarısından kısaysa yanlış dosya olabileceği için ayrıca onay istenir.
+- Hiç liste yüklenmemişse örnek liste kullanılır ve ekranda belirtilir.
+
 ## Sıradaki işler
 
-- Gerçek kural kitaplığı: en çok kesinti yenen ilaç gruplarından başlayarak SUT'tan kodlama
+- SUT taslaklarının resmî metinle karşılaştırılıp onaylanması; klopidogrel ve diğer gruplar
+- Excel okuyucu `xlsx` 0.18.5'in SheetJS CDN'deki güvenlik düzeltmeli sürüme (0.20.x) yükseltilmesi
 - Medula Eczane web servis istemcisi ve sabit IP geçidi
 - Reçete okuma (e-reçete sorgu) ve gerçek reçete girişi
 - Parola değiştirme ve sıfırlama, iki adımlı doğrulama

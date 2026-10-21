@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useState, type FormEvent } from 'react';
-import type { IlacKurali, Kaynak, RaporTuru, ReceteTuru } from '@scalpiq/sut-motoru';
+import { normalize, type IlacKurali, type Kaynak, type RaporTuru, type ReceteTuru } from '@scalpiq/sut-motoru';
 import { istek, IstekHatasi } from './api';
+import { Ek4aKarti } from './Ek4a';
 
 type KuralDurumu = 'ornek' | 'taslak' | 'onayli' | 'kapali';
 
@@ -34,6 +35,9 @@ const BOS_FORM = {
   raporGerekli: false,
   raporTuru: '' as RaporTuru | '',
   raporBranslari: '',
+  raporsuzBranslar: '',
+  raporAzamiGun: '',
+  raporIcerigi: '',
   receteBranslari: '',
   tanilar: '',
   maksDoz: '',
@@ -59,6 +63,17 @@ function formdanKural(f: typeof BOS_FORM): IlacKurali {
     raporGerekli: f.raporGerekli || undefined,
     raporTuru: f.raporTuru || undefined,
     raporDuzenleyenBranslar: dizi(f.raporBranslari),
+    raporsuzYazabilenBranslar: dizi(f.raporsuzBranslar),
+    raporAzamiGun: sayi(f.raporAzamiGun),
+    raporIcerigi: f.raporIcerigi
+      .split('\n')
+      .map((x) => x.trim())
+      .filter(Boolean).length
+      ? f.raporIcerigi
+          .split('\n')
+          .map((x) => x.trim())
+          .filter(Boolean)
+      : undefined,
     receteEdenBranslar: dizi(f.receteBranslari),
     izinliTanilar: dizi(f.tanilar.toUpperCase()),
     maksGunlukDoz: sayi(f.maksDoz),
@@ -67,10 +82,38 @@ function formdanKural(f: typeof BOS_FORM): IlacKurali {
   };
 }
 
+function kuraldanForm(k: IlacKurali): typeof BOS_FORM {
+  return {
+    id: k.id,
+    etkenMadde: k.etkenMadde,
+    aciklama: k.aciklama,
+    kaynakTur: k.kaynak.tur,
+    madde: k.kaynak.madde ?? '',
+    kaynakAciklama: k.kaynak.aciklama,
+    rgTarih: k.kaynak.resmiGazete?.tarih ?? '',
+    rgSayi: k.kaynak.resmiGazete?.sayi ?? '',
+    url: k.kaynak.url ?? '',
+    baslangic: k.gecerlilik.baslangic,
+    raporGerekli: !!k.raporGerekli,
+    raporTuru: k.raporTuru ?? '',
+    raporBranslari: (k.raporDuzenleyenBranslar ?? []).join(', '),
+    raporsuzBranslar: (k.raporsuzYazabilenBranslar ?? []).join(', '),
+    raporAzamiGun: k.raporAzamiGun ? String(k.raporAzamiGun) : '',
+    raporIcerigi: (k.raporIcerigi ?? []).join('\n'),
+    receteBranslari: (k.receteEdenBranslar ?? []).join(', '),
+    tanilar: (k.izinliTanilar ?? []).join(', '),
+    maksDoz: k.maksGunlukDoz ? String(k.maksGunlukDoz) : '',
+    maksGun: k.maksTedaviGunu ? String(k.maksTedaviGunu) : '',
+    receteTuru: k.receteTuru ?? '',
+  };
+}
+
 function kosullar(k: IlacKurali): string {
   const p: string[] = [];
   if (k.raporGerekli) p.push(`${k.raporTuru === 'saglik-kurulu' ? 'sağlık kurulu' : k.raporTuru === 'uzman' ? 'uzman hekim' : ''} raporu`.trim());
   if (k.raporDuzenleyenBranslar?.length) p.push(`rapor: ${k.raporDuzenleyenBranslar.join(', ')}`);
+  if (k.raporsuzYazabilenBranslar?.length) p.push(`raporsuz: ${k.raporsuzYazabilenBranslar.join(', ')}`);
+  if (k.raporAzamiGun) p.push(`rapor en fazla ${k.raporAzamiGun} gün`);
   if (k.receteEdenBranslar?.length) p.push(`reçete: ${k.receteEdenBranslar.join(', ')}`);
   if (k.izinliTanilar?.length) p.push(`tanı: ${k.izinliTanilar.join(', ')}`);
   if (k.maksGunlukDoz) p.push(`en fazla ${k.maksGunlukDoz}/gün`);
@@ -83,15 +126,29 @@ export function KuralKitapligi({ duzenleyebilir }: { duzenleyebilir: boolean }) 
   const [kurallar, setKurallar] = useState<IlacKurali[]>([]);
   const [form, setForm] = useState(BOS_FORM);
   const [formAcik, setFormAcik] = useState(false);
+  /** Düzenlenen taslağın kimliği; boşsa form yeni kural ekler */
+  const [duzenlenen, setDuzenlenen] = useState<string>();
+  const [arama, setArama] = useState('');
+  const [suzgec, setSuzgec] = useState<KuralDurumu | ''>('');
+  const [taslak, setTaslak] = useState<{ toplam: number; eksik: number }>();
+  const [bilgi, setBilgi] = useState<string>();
   const [hata, setHata] = useState<{ metin: string; ayrinti?: string[] }>();
 
-  const yukle = useCallback(() => istek<IlacKurali[]>('/api/kurallar').then(setKurallar), []);
+  const yukle = useCallback(
+    () =>
+      Promise.all([
+        istek<IlacKurali[]>('/api/kurallar').then(setKurallar),
+        istek<{ toplam: number; eksik: number }>('/api/kurallar/sut-taslaklari').then(setTaslak),
+      ]),
+    [],
+  );
   useEffect(() => {
     yukle().catch((e) => setHata({ metin: (e as Error).message }));
   }, [yukle]);
 
   async function islem(f: () => Promise<unknown>) {
     setHata(undefined);
+    setBilgi(undefined);
     try {
       await f();
       await yukle();
@@ -104,10 +161,28 @@ export function KuralKitapligi({ duzenleyebilir }: { duzenleyebilir: boolean }) 
 
   async function kaydet(e: FormEvent) {
     e.preventDefault();
-    if (await islem(() => istek('/api/kurallar', formdanKural(form)))) {
+    const kural = formdanKural(form);
+    const kaydedildi = duzenlenen
+      ? await islem(() => istek(`/api/kurallar/${encodeURIComponent(duzenlenen)}`, kural, 'PUT'))
+      : await islem(() => istek('/api/kurallar', kural));
+    if (kaydedildi) {
       setForm(BOS_FORM);
       setFormAcik(false);
+      setDuzenlenen(undefined);
     }
+  }
+
+  function duzenle(k: IlacKurali) {
+    setForm(kuraldanForm(k));
+    setDuzenlenen(k.id);
+    setFormAcik(true);
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  }
+
+  async function taslaklariEkle() {
+    let eklenen = 0;
+    if (await islem(async () => (eklenen = (await istek<{ eklenen: number }>('/api/kurallar/sut-taslaklari', {})).eklenen)))
+      setBilgi(`${eklenen} SUT taslağı kitaplığa eklendi. Her birini SUT metniyle karşılaştırıp onaylayın; onaylanana kadar kontrolde kullanılmaz.`);
   }
 
   function onayla(k: IlacKurali) {
@@ -124,6 +199,13 @@ export function KuralKitapligi({ duzenleyebilir }: { duzenleyebilir: boolean }) 
     if (window.confirm(`${k.id} taslağı silinsin mi?`)) void islem(() => istek(`/api/kurallar/${encodeURIComponent(k.id)}`, undefined, 'DELETE'));
   }
 
+  const aranan = normalize(arama);
+  const gorunen = kurallar.filter(
+    (k) =>
+      (!suzgec || durum(k) === suzgec) &&
+      (!aranan || [k.etkenMadde, k.id, k.kaynak.madde ?? ''].some((x) => normalize(x).includes(aranan))),
+  );
+
   const alan = (ad: keyof typeof BOS_FORM) => ({
     value: String(form[ad]),
     onChange: (e: { target: { value: string } }) => setForm((f) => ({ ...f, [ad]: e.target.value })),
@@ -136,9 +218,32 @@ export function KuralKitapligi({ duzenleyebilir }: { duzenleyebilir: boolean }) 
         Onaylı kural düzenlenemez ve silinemez.
         {!duzenleyebilir && ' Kitaplığı yalnızca kural yetkisi olan eczacılar değiştirebilir.'}
       </p>
+      <Ek4aKarti yukleyebilir={duzenleyebilir} />
+      {duzenleyebilir && !!taslak?.eksik && (
+        <section className="kart taslak-bandi">
+          <div>
+            <strong>SUT taslak kuralları hazır: {taslak.eksik} etken madde</strong>
+            <p className="soluk">
+              Statinler, yeni oral antikoagülanlar, diyabet ilaçları, montelukast, demans ve osteoporoz ilaçları için SUT 4.2 hükümlerinden kodlandı. Kitaplığa
+              taslak olarak eklenir; siz onaylayana kadar kontrolde kullanılmaz.
+            </p>
+          </div>
+          <button className="birincil" onClick={taslaklariEkle}>
+            Taslakları ekle
+          </button>
+        </section>
+      )}
+      {bilgi && <div className="mesaj basari">{bilgi}</div>}
       {duzenleyebilir && (
         <div className="eylemler">
-          <button className="birincil" onClick={() => setFormAcik((a) => !a)}>
+          <button
+            className="birincil"
+            onClick={() => {
+              setFormAcik((a) => !a);
+              setDuzenlenen(undefined);
+              setForm(BOS_FORM);
+            }}
+          >
             {formAcik ? 'Formu kapat' : 'Yeni kural ekle'}
           </button>
         </div>
@@ -147,8 +252,8 @@ export function KuralKitapligi({ duzenleyebilir }: { duzenleyebilir: boolean }) 
       {duzenleyebilir && formAcik && (
         <form className="kart form" onSubmit={kaydet}>
           <fieldset>
-            <legend>Kural</legend>
-            <label>Kimlik<input required placeholder="SUT-4.2.X-MADDE-1" {...alan('id')} /></label>
+            <legend>{duzenlenen ? `Taslağı düzenle: ${duzenlenen}` : 'Kural'}</legend>
+            <label>Kimlik<input required disabled={!!duzenlenen} placeholder="SUT-4.2.X-MADDE-1" {...alan('id')} /></label>
             <label>Etken madde<input required {...alan('etkenMadde')} /></label>
             <label className="genis">Açıklama<input required placeholder="Ödeme koşulunun kısa özeti" {...alan('aciklama')} /></label>
             <label>Geçerlilik başlangıcı<input required type="date" {...alan('baslangic')} /></label>
@@ -184,6 +289,12 @@ export function KuralKitapligi({ duzenleyebilir }: { duzenleyebilir: boolean }) 
               </select>
             </label>
             <label>Raporu düzenleyen branşlar<input placeholder="virgülle ayırın" {...alan('raporBranslari')} /></label>
+            <label>Raporsuz yazabilen branşlar<input placeholder="diğer hekimler raporla yazar" {...alan('raporsuzBranslar')} /></label>
+            <label>Rapor en fazla (gün)<input type="number" min="1" {...alan('raporAzamiGun')} /></label>
+            <label className="genis">
+              Raporda yazılı olması gerekenler (her satıra bir madde)
+              <textarea placeholder="Örn. son 6 ay içindeki LDL değerleri" {...alan('raporIcerigi')} />
+            </label>
             <label>Reçete eden branşlar<input placeholder="boşsa tüm hekimler" {...alan('receteBranslari')} /></label>
             <label>İzinli ICD-10 tanıları<input placeholder="I25, I21" {...alan('tanilar')} /></label>
             <label>Azami günlük doz<input type="number" step="any" min="0" {...alan('maksDoz')} /></label>
@@ -201,7 +312,7 @@ export function KuralKitapligi({ duzenleyebilir }: { duzenleyebilir: boolean }) 
           </fieldset>
           <div className="eylemler">
             <button className="birincil" type="submit">
-              Taslak olarak kaydet
+              {duzenlenen ? 'Taslağı güncelle' : 'Taslak olarak kaydet'}
             </button>
           </div>
         </form>
@@ -221,6 +332,19 @@ export function KuralKitapligi({ duzenleyebilir }: { duzenleyebilir: boolean }) 
       )}
 
       <section className="kart">
+        <div className="eylemler ust kural-suzgec">
+          <input className="arama" placeholder="Etken madde, SUT maddesi ya da kimlikle ara" value={arama} onChange={(e) => setArama(e.target.value)} />
+          <select value={suzgec} onChange={(e) => setSuzgec(e.target.value as KuralDurumu | '')}>
+            <option value="">Tüm durumlar</option>
+            <option value="taslak">Taslak</option>
+            <option value="onayli">Onaylı</option>
+            <option value="kapali">Kapalı</option>
+            <option value="ornek">Örnek</option>
+          </select>
+          <span className="soluk">
+            {gorunen.length} / {kurallar.length} kural
+          </span>
+        </div>
         <table>
           <thead>
             <tr>
@@ -233,7 +357,7 @@ export function KuralKitapligi({ duzenleyebilir }: { duzenleyebilir: boolean }) 
             </tr>
           </thead>
           <tbody>
-            {kurallar.map((k) => {
+            {gorunen.map((k) => {
               const d = durum(k);
               return (
                 <tr key={k.id}>
@@ -243,6 +367,13 @@ export function KuralKitapligi({ duzenleyebilir }: { duzenleyebilir: boolean }) 
                   <td>
                     <strong>{k.etkenMadde}</strong>
                     <div className="soluk">{k.aciklama}</div>
+                    {k.raporIcerigi?.length ? (
+                      <ul className="rapor-icerigi">
+                        {k.raporIcerigi.map((r) => (
+                          <li key={r}>Raporda: {r}</li>
+                        ))}
+                      </ul>
+                    ) : null}
                     <code>{k.id}</code>
                   </td>
                   <td>{kosullar(k)}</td>
@@ -262,6 +393,7 @@ export function KuralKitapligi({ duzenleyebilir }: { duzenleyebilir: boolean }) 
                     {duzenleyebilir && d === 'taslak' && (
                       <>
                         <button onClick={() => onayla(k)}>Onayla</button>
+                        <button onClick={() => duzenle(k)}>Düzenle</button>
                         <button onClick={() => sil(k)}>Sil</button>
                       </>
                     )}

@@ -85,7 +85,7 @@ export function ek4aOku(veri: ArrayBuffer | Uint8Array): AktarimSonucu {
   const al = (satir: unknown[], ad: SutunAdi) => (indeks[ad] === undefined ? undefined : satir[indeks[ad]!]);
 
   const uyarilar: string[] = [];
-  for (const ad of Object.keys(SUTUNLAR) as SutunAdi[]) if (indeks[ad] === undefined) uyarilar.push(`"${ad}" sütunu bulunamadı`);
+  for (const ad of Object.keys(SUTUNLAR) as SutunAdi[]) if (indeks[ad] === undefined) uyarilar.push(`"${SUTUNLAR[ad][0]}" sütunu bulunamadı`);
 
   const kayitlar: Ek4aSatiri[] = [];
   for (let i = baslik.satir + 1; i < satirlar.length; i++) {

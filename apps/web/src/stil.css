@@ -384,3 +384,13 @@ table.gunluk td { padding-top: 7px; padding-bottom: 7px; }
   /* Geniş tablolar dar ekranda kartın içinde yana kayar, sayfayı taşırmaz. */
   .sayfa-icerik .kart { overflow-x: auto; }
 }
+
+/* ---------- EK-4/A ve kural kitaplığı ---------- */
+.ek4a-formu { align-items: flex-end; padding-top: 12px; border-top: 1px dashed var(--cizgi); }
+.ek4a-formu label, .kural-suzgec label { display: flex; flex-direction: column; gap: 6px; font-size: 12.5px; font-weight: 500; color: var(--soluk); }
+.ek4a-formu input[type='file'] { padding: 7px; }
+.kural-suzgec { margin: 0 0 12px; }
+.kural-suzgec select { min-width: 150px; }
+.taslak-bandi { display: flex; gap: 16px; align-items: center; justify-content: space-between; flex-wrap: wrap; }
+.taslak-bandi p { margin: 4px 0 0; }
+ul.rapor-icerigi { margin: 4px 0 0; padding-left: 18px; color: var(--soluk); font-size: 13px; }

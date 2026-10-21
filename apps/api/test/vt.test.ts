@@ -12,6 +12,7 @@ import { PgCariDeposu } from '../src/vt/pg-cari-deposu.js';
 import { CariHatasi } from '../src/cari/cari.js';
 import { StokHatasi, type StokHareketi } from '../src/stok/stok.js';
 import { PgGunSonuDeposu } from '../src/vt/pg-gun-sonu-deposu.js';
+import { PgEk4aDeposu } from '../src/vt/pg-ek4a-deposu.js';
 import { GunZatenKapaliHatasi, type GunSonu } from '../src/rapor/rapor.js';
 
 // PostgreSQL depolarının testleri. Yalnızca TEST_DATABASE_URL verildiğinde çalışır;
@@ -24,7 +25,7 @@ describe.skipIf(!adres)('PostgreSQL depoları', () => {
   beforeAll(async () => {
     havuz = havuzOlustur(adres!);
     await havuz.query('drop schema public cascade; create schema public;');
-    expect(await gocleriUygula(havuz)).toEqual(['001_ilk.sql', '002_stok.sql', '003_alis.sql', '004_cari.sql', '005_gun_sonu.sql']);
+    expect(await gocleriUygula(havuz)).toEqual(['001_ilk.sql', '002_stok.sql', '003_alis.sql', '004_cari.sql', '005_gun_sonu.sql', '006_ek4a.sql']);
   });
   afterAll(() => havuz?.end());
 
@@ -260,5 +261,33 @@ describe.skipIf(!adres)('PostgreSQL depoları', () => {
     expect(await depo.al(e.id, '2026-10-21')).toBeUndefined();
     expect(await depo.liste(e.id, 10)).toEqual([g]);
     await expect(havuz.query('update gun_sonu set fark_kurus = 5')).rejects.toThrow('değiştirilemez');
+  });
+
+  it('EK-4/A: sürümler eklenir, en son yayımlanan aktiftir, kayıtlar değişmez', async () => {
+    const { k } = await eczaneVeKullanici();
+    const depo = new PgEk4aDeposu(havuz);
+    expect(await depo.aktif()).toBeUndefined();
+    const kayit = (barkod: string, ad: string, eski: string[] = []) => ({ barkod, ad, eskiBarkodlar: eski });
+    // Parça sınırını aşan bir liste: tek sorguda yazılamaz.
+    const cok = Array.from({ length: 4500 }, (_, i) => kayit(String(8690000100000 + i), `ILAC ${i}`));
+    await depo.ekle({ yayimTarihi: '2026-09-01', yukleyen: 'X', kullaniciId: k.id }, cok);
+    const yeni = await depo.ekle({ yayimTarihi: '2026-10-01', dosyaAdi: 'ek4a.xlsx', yukleyen: 'Y', kullaniciId: k.id }, [
+      { ...kayit('8690000000011', 'KARDIOX', ['8690000000004']), kamuNo: 'A1', esdegerGrubu: 'E1' },
+      kayit('8690000000028', 'ONKOMAB'),
+    ]);
+    // Daha eski yayım tarihli sürüm sonradan yüklense de aktif olan en son yayımlanandır.
+    await depo.ekle({ yayimTarihi: '2026-08-01', yukleyen: 'Z', kullaniciId: k.id }, [kayit('8690000000035', 'ESKI')]);
+    const aktif = await depo.aktif();
+    expect(aktif?.surum).toEqual(yeni);
+    expect(aktif?.kayitlar).toEqual([
+      { barkod: '8690000000011', ad: 'KARDIOX', kamuNo: 'A1', esdegerGrubu: 'E1', eskiBarkodlar: ['8690000000004'] },
+      { barkod: '8690000000028', ad: 'ONKOMAB', eskiBarkodlar: [] },
+    ]);
+    expect((await depo.surumler()).map((s) => [s.yayimTarihi, s.kayitSayisi])).toEqual([
+      ['2026-10-01', 2],
+      ['2026-09-01', 4500],
+      ['2026-08-01', 1],
+    ]);
+    await expect(havuz.query('delete from ek4a_kaydi')).rejects.toThrow('değiştirilemez');
   });
 });

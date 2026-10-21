@@ -24,7 +24,7 @@ describe('kural doğrulama', () => {
       'Geçerlilik bitişi başlangıçtan önce olamaz',
       'Geçersiz ICD-10 kodu: yanlış',
       'Azami tedavi günü pozitif tam sayı olmalı',
-      'Rapor türü veya rapor branşı verildiyse "rapor gerekli" işaretlenmeli',
+      'Rapor türü, rapor branşı, raporsuz yazabilen branş, rapor süresi veya rapor içeriği verildiyse "rapor gerekli" işaretlenmeli',
     ]);
   });
 

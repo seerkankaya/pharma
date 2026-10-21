@@ -1,14 +1,15 @@
-import { kalemKurallari, receteKurallari } from './kurallar/index.js';
+import { etkenMaddeUyar, kalemKurallari, receteKurallari } from './kurallar/index.js';
 import { aralikta } from './tarih.js';
 import type { Bulgu, Durum, Gerekceler, IlacKurali, KontrolGirdisi, KontrolSonucu } from './types.js';
 
-function esit(a: string, b: string): boolean {
-  return a.trim().toLocaleUpperCase('tr-TR') === b.trim().toLocaleUpperCase('tr-TR');
-}
-
-/** Etken madde için reçete tarihinde geçerli kuralı bulur. */
+/**
+ * Etken madde için reçete tarihinde geçerli kuralı bulur. Birden çok kural uyarsa adı en uzun
+ * (en özgül) olan seçilir: "KLOPIDOGREL + ASETILSALISILIK ASIT" kombinasyon kuralı "KLOPIDOGREL"den önce gelir.
+ */
 export function gecerliKural(kurallar: IlacKurali[], etkenMadde: string, tarih: string): IlacKurali | undefined {
-  return kurallar.find((k) => esit(k.etkenMadde, etkenMadde) && aralikta(tarih, k.gecerlilik.baslangic, k.gecerlilik.bitis));
+  return kurallar
+    .filter((k) => etkenMaddeUyar(k.etkenMadde, etkenMadde) && aralikta(tarih, k.gecerlilik.baslangic, k.gecerlilik.bitis))
+    .sort((a, b) => b.etkenMadde.length - a.etkenMadde.length)[0];
 }
 
 export function kontrolEt(girdi: KontrolGirdisi): KontrolSonucu {
@@ -17,7 +18,9 @@ export function kontrolEt(girdi: KontrolGirdisi): KontrolSonucu {
 
   for (const kalem of recete.kalemler) {
     const kural = gecerliKural(girdi.ilacKurallari, kalem.etkenMadde, recete.tarih);
-    const raporlar = recete.raporlar.filter((r) => r.ilaclar.some((i) => esit(i.etkenMadde, kalem.etkenMadde)));
+    const raporlar = recete.raporlar.filter((r) =>
+      r.ilaclar.some((i) => etkenMaddeUyar(i.etkenMadde, kalem.etkenMadde) || etkenMaddeUyar(kalem.etkenMadde, i.etkenMadde)),
+    );
     for (const k of kalemKurallari) bulgular.push(...k.calistir({ girdi, kalem, kural, raporlar }));
   }
 

@@ -1,4 +1,5 @@
 import { gunFarki } from './tarih.js';
+import { normalize } from './kurallar/index.js';
 import type { IlacKurali } from './types.js';
 
 const ISO_TARIH = /^\d{4}-\d{2}-\d{2}$/;
@@ -29,8 +30,11 @@ export function kuralDogrula(k: IlacKurali): string[] {
   if (k.maksGunlukDoz !== undefined && !(k.maksGunlukDoz > 0)) hatalar.push('Azami günlük doz pozitif olmalı');
   if (k.maksTedaviGunu !== undefined && !(Number.isInteger(k.maksTedaviGunu) && k.maksTedaviGunu > 0))
     hatalar.push('Azami tedavi günü pozitif tam sayı olmalı');
-  if (!k.raporGerekli && (k.raporTuru || k.raporDuzenleyenBranslar?.length))
-    hatalar.push('Rapor türü veya rapor branşı verildiyse "rapor gerekli" işaretlenmeli');
+  if (!k.raporGerekli && (k.raporTuru || k.raporDuzenleyenBranslar?.length || k.raporsuzYazabilenBranslar?.length || k.raporAzamiGun || k.raporIcerigi?.length))
+    hatalar.push('Rapor türü, rapor branşı, raporsuz yazabilen branş, rapor süresi veya rapor içeriği verildiyse "rapor gerekli" işaretlenmeli');
+  if (k.raporAzamiGun !== undefined && !(Number.isInteger(k.raporAzamiGun) && k.raporAzamiGun > 0))
+    hatalar.push('Azami rapor süresi pozitif tam sayı (gün) olmalı');
+  for (const r of k.raporIcerigi ?? []) if (!r.trim()) hatalar.push('Rapor içeriği maddeleri boş olamaz');
   return hatalar;
 }
 
@@ -48,7 +52,7 @@ export function cakisanKural(kurallar: IlacKurali[], yeni: IlacKurali): IlacKura
   return etkinKurallar(kurallar).find(
     (k) =>
       k.id !== yeni.id &&
-      k.etkenMadde.trim().toLocaleUpperCase('tr-TR') === yeni.etkenMadde.trim().toLocaleUpperCase('tr-TR') &&
+      normalize(k.etkenMadde) === normalize(yeni.etkenMadde) &&
       gunFarki(k.gecerlilik.baslangic, bitis(yeni)) >= 0 &&
       gunFarki(yeni.gecerlilik.baslangic, bitis(k)) >= 0,
   );
