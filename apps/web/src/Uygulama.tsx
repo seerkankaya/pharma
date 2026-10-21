@@ -3,6 +3,7 @@ import { ASGARI_GEREKCE_UZUNLUGU, gerekceAnahtari, type Bulgu, type GecmisVerili
 import { istek, IstekHatasi, OTURUM_DUSTU } from './api';
 import { Alis } from './Alis';
 import { DenetimKaydiSayfasi } from './DenetimKaydi';
+import { ElleRecete } from './ElleRecete';
 import { Giris } from './Giris';
 import { GunSonu } from './GunSonu';
 import { Kabuk, type Sayfa } from './Kabuk';
@@ -105,7 +106,10 @@ export function Uygulama() {
 
 function ReceteKontrol() {
   const [ornekler, setOrnekler] = useState<Ornek[]>([]);
+  /** -1: elle reçete girişi */
   const [secili, setSecili] = useState(0);
+  const [elle, setElle] = useState<Ornek>();
+  const [bugun, setBugun] = useState<string>();
   const [kontrol, setKontrol] = useState<Kontrol>();
   const [gerekceler, setGerekceler] = useState<Record<string, string>>({});
   const [mesaj, setMesaj] = useState<{ tur: 'basari' | 'hata'; metin: string; engeller?: string[] }>();
@@ -113,13 +117,16 @@ function ReceteKontrol() {
 
   useEffect(() => {
     istek<Ornek[]>('/api/ornekler').then(setOrnekler, (e) => setMesaj({ tur: 'hata', metin: `API'ye ulaşılamadı: ${e.message}` }));
+    istek<{ bugun: string }>('/api/bugun').then((b) => setBugun(b.bugun), () => setBugun(new Date().toISOString().slice(0, 10)));
   }, []);
 
-  const ornek = ornekler[secili];
+  const elleMi = secili === -1;
+  const ornek = elleMi ? elle : ornekler[secili];
 
   function sec(i: number) {
     setSecili(i);
     setMesaj(undefined);
+    if (i === -1) setElle(undefined);
   }
 
   // Reçete açılır açılmaz SUT kontrolü kendiliğinden çalışır. Eczacı başka reçeteye geçerse
@@ -168,6 +175,10 @@ function ReceteKontrol() {
       <p className="sayfa-notu">"Örnek kural" etiketli uyarılar gerçek SUT hükmü değildir; canlı kullanımdan önce kural kitaplığı SUT'tan kodlanıp onaylanmalı.</p>
       <div className="duzen">
         <nav>
+          <button className={elleMi ? 'secili' : ''} onClick={() => sec(-1)}>
+            <strong>+ Elle reçete gir</strong>
+            <span>Kendi reçetenizi girip kontrol edin</span>
+          </button>
           <h2>Örnek reçeteler</h2>
           {ornekler.map((o, i) => (
             <button key={o.recete.no} className={i === secili ? 'secili' : ''} onClick={() => sec(i)}>
@@ -178,6 +189,23 @@ function ReceteKontrol() {
         </nav>
 
         <main>
+          {/* Form kontrol sonucu gösterilirken de açık kalır; düzenlemeye dönülünce girilenler kaybolmaz. */}
+          {elleMi && bugun && (
+            <div hidden={!!elle}>
+              <ElleRecete
+                bugun={bugun}
+                kontrolEt={(recete) => {
+                  setMesaj(undefined);
+                  setElle({ baslik: 'Elle girilen reçete', recete });
+                }}
+              />
+            </div>
+          )}
+          {elleMi && elle && (
+            <div className="eylemler">
+              <button onClick={() => setElle(undefined)}>← Reçeteyi düzenle</button>
+            </div>
+          )}
           {ornek && <ReceteKarti recete={ornek.recete} />}
 
           {ornek && !kontrol && mesgul && <p className="soluk">SUT kontrolü yapılıyor…</p>}
