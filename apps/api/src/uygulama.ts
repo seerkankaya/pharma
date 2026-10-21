@@ -39,6 +39,8 @@ import { gelirGiderRotalari, gunlukKasaEtkisi } from './gelir-gider/gelir-gider-
 import { receteSatisRotalari } from './recete-satisi/recete-satisi-rotalari.js';
 import { etkilesimKurallari, etkilesimRotalari } from './etkilesim/etkilesim-rotalari.js';
 import { etkilesimKontrol, type EtkilesimKurali } from './etkilesim/etkilesim.js';
+import { SahteOkc, type OkcIstemcisi } from './okc/okc.js';
+import { okcRotalari } from './okc/okc-rotalari.js';
 import type { ReceteSatisi } from './recete-satisi/recete-satisi.js';
 
 export interface Bagimliliklar {
@@ -57,6 +59,8 @@ export interface Bagimliliklar {
   belgeler?: BelgeDeposuUretici;
   /** Verilmezse İTS'ye gitmeyen sahte istemci kullanılır. */
   its?: ItsIstemcisi;
+  /** ÖKC ve POS; verilmezse cihaza gitmeyen sahte cihaz kullanılır. */
+  okc?: OkcIstemcisi;
   /** Kontrol gününü verir (testlerde sabitlenir) */
   bugun: () => string;
   /** Oturum çerezi yalnızca HTTPS üzerinden gönderilsin mi (canlıda açık) */
@@ -178,6 +182,7 @@ export function uygulamaOlustur(b: Bagimliliklar) {
   emanetRotalari(app, b.stok, b.cari, belgeler('emanet'), b.bugun);
   gelirGiderRotalari(app, kasaHareketleri, gunKapaliMi, b.bugun);
   etkilesimRotalari(app, etkilesimDeposu, b.bugun);
+  okcRotalari(app, b.stok, belgeler('okc_fis'), b.okc ?? new SahteOkc());
   receteSatisRotalari(
     app,
     { satislar: receteSatislari, icmaller: belgeler('icmal'), tahsilatlar: belgeler('kurum_tahsilat'), ayarlar: belgeler('eczane_ayar') },
