@@ -11,6 +11,7 @@
   "dependencies": {
     "@scalpiq/ek4a-aktarim": "0.1.0",
     "@scalpiq/sut-motoru": "0.1.0",
+    "fast-xml-parser": "5.11.2",
     "fastify": "5.2.0",
     "pg": "8.13.3"
   },

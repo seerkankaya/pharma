@@ -4,6 +4,20 @@ import { islemIcinde, type Havuz } from './baglanti.js';
 // Tablo yapısı her modülde aynıdır: (eczane_id, id, veri jsonb, guncelleme). Göçler tabloyu açar.
 const TABLO = /^[a-z_]+$/;
 
+/** Belgeleri verilen işlem içinde yazar; aynı kimlikli belge varsa yerine yazılır. */
+export async function pgBelgeYaz(c: { query: Havuz['query'] }, tablo: string, eczaneId: string, belgeler: Belge[]) {
+  if (!TABLO.test(tablo)) throw new Error(`Geçersiz tablo adı: ${tablo}`);
+  // Aynı belge iki kez yazılırsa sonuncusu geçerlidir.
+  const tekil = [...new Map(belgeler.map((b) => [b.id, b])).values()];
+  if (!tekil.length) return;
+  await c.query(
+    `insert into ${tablo} (eczane_id, id, veri)
+     select $1, x.id, x.veri::jsonb from unnest($2::text[], $3::text[]) as x(id, veri)
+     on conflict (eczane_id, id) do update set veri = excluded.veri, guncelleme = now()`,
+    [eczaneId, tekil.map((b) => b.id), tekil.map((b) => JSON.stringify(b))],
+  );
+}
+
 export class PgBelgeDeposu<T extends Belge> implements BelgeDeposu<T> {
   constructor(
     private readonly havuz: Havuz,
@@ -30,15 +44,7 @@ export class PgBelgeDeposu<T extends Belge> implements BelgeDeposu<T> {
         idler,
       ]);
       const { sonuc, yaz = [] } = f(new Map(rows.map((r) => [r.id, r.veri])));
-      // Aynı belge iki kez yazılırsa sonuncusu geçerlidir.
-      const tekil = [...new Map(yaz.map((b) => [b.id, b])).values()];
-      if (tekil.length)
-        await c.query(
-          `insert into ${this.tablo} (eczane_id, id, veri)
-           select $1, x.id, x.veri::jsonb from unnest($2::text[], $3::text[]) as x(id, veri)
-           on conflict (eczane_id, id) do update set veri = excluded.veri, guncelleme = now()`,
-          [eczaneId, tekil.map((b) => b.id), tekil.map((b) => JSON.stringify(b))],
-        );
+      await pgBelgeYaz(c, this.tablo, eczaneId, yaz);
       return sonuc;
     });
   }

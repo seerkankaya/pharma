@@ -26,7 +26,7 @@ describe.skipIf(!adres)('PostgreSQL depoları', () => {
   beforeAll(async () => {
     havuz = havuzOlustur(adres!);
     await havuz.query('drop schema public cascade; create schema public;');
-    expect(await gocleriUygula(havuz)).toEqual(['001_ilk.sql', '002_stok.sql', '003_alis.sql', '004_cari.sql', '005_gun_sonu.sql', '006_ek4a.sql', '007_ek4a_pasif.sql', '008_its.sql']);
+    expect(await gocleriUygula(havuz)).toEqual(['001_ilk.sql', '002_stok.sql', '003_alis.sql', '004_cari.sql', '005_gun_sonu.sql', '006_ek4a.sql', '007_ek4a_pasif.sql', '008_its.sql', '009_depo.sql']);
   });
   afterAll(() => havuz?.end());
 
@@ -320,5 +320,28 @@ describe.skipIf(!adres)('PostgreSQL depoları', () => {
       }),
     ).rejects.toThrow('vazgeç');
     expect(await depo.liste(e.id)).toEqual([{ id: 'a', sayi: 22 }]);
+  });
+  it('depo iadesi: stok çıkışı ve iade belgesi aynı işlemde; iade ve ödeme kayıtları değiştirilemez', async () => {
+    const { e, k } = await eczaneVeKullanici();
+    const depo = new PgStokDeposu(havuz);
+    const iadeler = new PgBelgeDeposu<{ id: string; tedarikciId: string; belgeNo: string }>(havuz, 'depo_iade');
+    const barkod = '8690000000011';
+    const h = (tur: StokHareketi['tur'], miktar: number): StokHareketi => ({ barkod, tur, miktar, partiNo: 'P', skt: '2027-01-01', kullaniciId: k.id, zaman: new Date().toISOString() });
+    await depo.islem(e.id, [barkod], () => ({ sonuc: null, hareketler: [h('giris', 5)] }));
+    const belge = { id: randomUUID(), tedarikciId: 'D', belgeNo: 'I-1' };
+    await depo.islem(e.id, [barkod], () => ({ sonuc: null, hareketler: [h('iade', -2)], belgeler: [{ tablo: 'depo_iade', belge }] }));
+    expect((await depo.stok(e.id)).get(barkod)).toEqual([{ partiNo: 'P', skt: '2027-01-01', miktar: 3 }]);
+    expect(await iadeler.liste(e.id)).toEqual([belge]);
+
+    // Aynı depoya aynı numaralı ikinci iade yazılamaz; stok çıkışı da geri alınır.
+    await expect(
+      depo.islem(e.id, [barkod], () => ({ sonuc: null, hareketler: [h('iade', -1)], belgeler: [{ tablo: 'depo_iade', belge: { ...belge, id: randomUUID() } }] })),
+    ).rejects.toMatchObject({ code: '23505' });
+    expect((await depo.stok(e.id)).get(barkod)![0]!.miktar).toBe(3);
+
+    await expect(iadeler.degistir(e.id, [belge.id], () => ({ sonuc: null, yaz: [{ ...belge, belgeNo: 'X' }] }))).rejects.toThrow('değiştirilemez');
+    await expect(havuz.query('delete from depo_odeme')).resolves.toBeDefined();
+    await new PgBelgeDeposu(havuz, 'depo_odeme').degistir(e.id, [], () => ({ sonuc: null, yaz: [{ id: 'o1' }] }));
+    await expect(havuz.query('delete from depo_odeme')).rejects.toThrow('değiştirilemez');
   });
 });

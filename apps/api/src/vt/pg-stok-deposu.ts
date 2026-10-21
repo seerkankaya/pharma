@@ -1,6 +1,7 @@
 import { partiler, type Parti, type Satis, type StokHareketi, type Urun } from '../stok/stok.js';
 import type { AlisFaturasi, Tedarikci } from '../alis/alis.js';
 import { FaturaZatenVarHatasi, type StokDeposu, type StokYazimi } from '../stok/stok-deposu.js';
+import { pgBelgeYaz } from './pg-belge-deposu.js';
 import { islemIcinde, type Havuz } from './baglanti.js';
 import { pgBorcYaz } from './pg-cari-deposu.js';
 
@@ -72,6 +73,7 @@ export class PgStokDeposu implements StokDeposu {
           JSON.stringify(y.satis),
         ]);
       for (const h of y.hareketler ?? []) await this.hareketYaz(c, eczaneId, h);
+      for (const { tablo, belge } of y.belgeler ?? []) await pgBelgeYaz(c, tablo, eczaneId, [belge]);
       // Satış satırı önce yazılmalı: borç hareketi satışa bağlanır.
       if (y.cariBorc) await pgBorcYaz(c, eczaneId, y.cariBorc);
       return y.sonuc;
