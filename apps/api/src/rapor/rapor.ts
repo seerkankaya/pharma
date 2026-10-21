@@ -103,9 +103,11 @@ export interface KasaBeklentisi {
   nakitGelirKurus?: number;
   nakitGiderKurus?: number;
   kartGelirKurus?: number;
-  /** Kasada olması gereken nakit: nakit satış + nakit tahsilat + nakit gelir − nakit gider */
+  nakitReceteKurus?: number;
+  kartReceteKurus?: number;
+  /** Kasada olması gereken nakit: nakit satış + nakit tahsilat + reçete hasta payı + nakit gelir − nakit gider */
   beklenenNakitKurus: number;
-  /** POS'tan geçmesi gereken: kart satış + kart tahsilat + kartla alınan gelir */
+  /** POS'tan geçmesi gereken: kart satış + kart tahsilat + kartla alınan hasta payı ve gelir */
   beklenenKartKurus: number;
 }
 
@@ -125,8 +127,8 @@ export function kasaBeklentisi(
   };
   return {
     ...b,
-    beklenenNakitKurus: b.nakitSatisKurus + b.nakitTahsilatKurus + b.nakitGelirKurus - b.nakitGiderKurus,
-    beklenenKartKurus: b.kartSatisKurus + b.kartTahsilatKurus + b.kartGelirKurus,
+    beklenenNakitKurus: b.nakitSatisKurus + b.nakitTahsilatKurus + (b.nakitReceteKurus ?? 0) + b.nakitGelirKurus - b.nakitGiderKurus,
+    beklenenKartKurus: b.kartSatisKurus + b.kartTahsilatKurus + (b.kartReceteKurus ?? 0) + b.kartGelirKurus,
   };
 }
 
