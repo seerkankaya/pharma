@@ -68,6 +68,9 @@ export interface KasaEtkisi {
   nakitGelirKurus: number;
   nakitGiderKurus: number;
   kartGelirKurus: number;
+  /** Reçeteli satışlarda hastadan alınan pay */
+  nakitReceteKurus?: number;
+  kartReceteKurus?: number;
 }
 
 export function kasaEtkisi(hareketler: Pick<KasaHareketi, 'tur' | 'tutarKurus' | 'odemeTuru'>[]): KasaEtkisi {

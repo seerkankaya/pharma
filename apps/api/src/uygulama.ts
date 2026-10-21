@@ -18,6 +18,7 @@ import type { KuralDeposu } from './kural-deposu.js';
 import { kuralRotalari } from './kural-rotalari.js';
 import type { MedulaIstemcisi } from './medula.js';
 import { oturumDenetimi } from './oturum.js';
+import type { OturumKullanicisi } from './hesap.js';
 import type { StokDeposu } from './stok/stok-deposu.js';
 import { stokRotalari } from './stok/stok-rotalari.js';
 import { alisRotalari } from './alis/alis-rotalari.js';
@@ -35,6 +36,8 @@ import { itsRotalari } from './its/its-rotalari.js';
 import { depoRotalari } from './depo/depo-rotalari.js';
 import { emanetRotalari } from './emanet/emanet-rotalari.js';
 import { gelirGiderRotalari, gunlukKasaEtkisi } from './gelir-gider/gelir-gider-rotalari.js';
+import { receteSatisRotalari } from './recete-satisi/recete-satisi-rotalari.js';
+import type { ReceteSatisi } from './recete-satisi/recete-satisi.js';
 
 export interface Bagimliliklar {
   /** Kontrolde kullanılan EK-4/A. DegisenEk4a verilirse yüklenen yeni liste sunucu yeniden başlamadan geçerli olur. */
@@ -88,16 +91,16 @@ export function uygulamaOlustur(b: Bagimliliklar) {
     return { kontrolId, ...sonuc };
   });
 
-  app.post<{ Body: { kontrolId: string; gerekceler?: Gerekceler } }>('/api/gonder', async (req, reply) => {
-    const { kontrolId, gerekceler = {} } = req.body ?? {};
-    const k = typeof kontrolId === 'string' ? await b.kontroller.al(kontrolId, req.kullanici!.eczaneId) : undefined;
-    if (!k) return reply.code(404).send({ hata: 'Kontrol bulunamadı. Reçeteyi yeniden kontrol edin.' });
-    if (k.durum !== 'bekliyor') return reply.code(409).send({ hata: 'Bu reçete zaten gönderildi.' });
+  /** Kontrol edilmiş reçeteyi Medula'ya gönderir; tekli ve toplu gönderim aynı kuralları kullanır. */
+  async function receteGonder(kullanici: OturumKullanicisi, kontrolId: unknown, gerekceler: Gerekceler = {}): Promise<{ kod: number; govde: object }> {
+    const k = typeof kontrolId === 'string' ? await b.kontroller.al(kontrolId, kullanici.eczaneId) : undefined;
+    if (!k) return { kod: 404, govde: { hata: 'Kontrol bulunamadı. Reçeteyi yeniden kontrol edin.' } };
+    if (k.durum !== 'bekliyor') return { kod: 409, govde: { hata: 'Bu reçete zaten gönderildi.' } };
 
     const karar = gonderimeIzinVarMi(k.sonuc, gerekceler);
-    if (!karar.izin) return reply.code(409).send({ hata: 'Gönderim kilitli', engeller: karar.engeller });
+    if (!karar.izin) return { kod: 409, govde: { hata: 'Gönderim kilitli', engeller: karar.engeller } };
 
-    if (!(await b.kontroller.gonderimiBaslat(k.id))) return reply.code(409).send({ hata: 'Bu reçete zaten gönderildi.' });
+    if (!(await b.kontroller.gonderimiBaslat(k.id))) return { kod: 409, govde: { hata: 'Bu reçete zaten gönderildi.' } };
 
     let medula;
     try {
@@ -107,7 +110,7 @@ export function uygulamaOlustur(b: Bagimliliklar) {
     }
     if (!medula.basarili) {
       await b.kontroller.gonderimiBirak(k.id);
-      return reply.code(502).send({ hata: medula.hata ?? 'Medula gönderimi başarısız' });
+      return { kod: 502, govde: { hata: medula.hata ?? 'Medula gönderimi başarısız' } };
     }
 
     const kullanilanGerekceler = Object.fromEntries(Object.entries(gerekceler).filter(([, v]) => typeof v === 'string' && v.trim()));
@@ -115,7 +118,7 @@ export function uygulamaOlustur(b: Bagimliliklar) {
       zaman: new Date().toISOString(),
       kontrolId: k.id,
       receteNo: k.recete.no,
-      gonderen: req.kullanici!.adSoyad,
+      gonderen: kullanici.adSoyad,
       durum: k.sonuc.durum,
       bulgular: k.sonuc.bulgular.map(({ kuralId, seviye, mesaj, kaynaklar, barkod, ilacKuraliId }) => ({
         kuralId,
@@ -129,7 +132,28 @@ export function uygulamaOlustur(b: Bagimliliklar) {
       ek4aYayimTarihi: k.sonuc.ek4aYayimTarihi,
       takipNo: medula.takipNo,
     });
-    return { takipNo: medula.takipNo };
+    return { kod: 200, govde: { takipNo: medula.takipNo } };
+  }
+
+  app.post<{ Body: { kontrolId: string; gerekceler?: Gerekceler } }>('/api/gonder', async (req, reply) => {
+    const { kontrolId, gerekceler } = req.body ?? {};
+    const r = await receteGonder(req.kullanici!, kontrolId, gerekceler);
+    return reply.code(r.kod).send(r.govde);
+  });
+
+  // Toplu reçete aktarımı: her reçete tek tek ve sırayla gönderilir; biri kilitliyse ya da Medula reddederse
+  // diğerleri etkilenmez. Her reçetenin sonucu ayrı döner.
+  app.post<{ Body: { gonderimler?: { kontrolId: string; gerekceler?: Gerekceler }[] } }>('/api/gonder/toplu', async (req, reply) => {
+    const gonderimler = req.body?.gonderimler;
+    if (!Array.isArray(gonderimler) || gonderimler.length === 0) return reply.code(400).send({ hata: 'Gönderilecek reçeteleri seçin' });
+    if (gonderimler.length > 100) return reply.code(400).send({ hata: 'Bir seferde en çok 100 reçete gönderilebilir' });
+    if (new Set(gonderimler.map((g) => g?.kontrolId)).size !== gonderimler.length) return reply.code(400).send({ hata: 'Aynı reçete iki kez seçilmiş' });
+    const sonuclar = [];
+    for (const g of gonderimler) {
+      const r = await receteGonder(req.kullanici!, g?.kontrolId, g?.gerekceler);
+      sonuclar.push({ kontrolId: g?.kontrolId, basarili: r.kod === 200, ...r.govde });
+    }
+    return { gonderilen: sonuclar.filter((x) => x.basarili).length, kalan: sonuclar.filter((x) => !x.basarili).length, sonuclar };
   });
 
   kuralRotalari(app, b.kurallar, b.bugun);
@@ -140,12 +164,22 @@ export function uygulamaOlustur(b: Bagimliliklar) {
   const belgeler = b.belgeler ?? bellekBelgeDepolari();
   const kasaHareketleri = belgeler<KasaHareketi>('kasa_hareketi');
   const depoOdemeleri = belgeler<DepoOdemesi>('depo_odeme');
+  const receteSatislari = belgeler<ReceteSatisi>('recete_satisi');
   const gunKapaliMi = async (eczaneId: string, gun: string) => !!(await b.gunSonu.al(eczaneId, gun));
-  raporRotalari(app, b.stok, b.cari, b.gunSonu, b.bugun, gunlukKasaEtkisi(kasaHareketleri, depoOdemeleri));
+  raporRotalari(app, b.stok, b.cari, b.gunSonu, b.bugun, gunlukKasaEtkisi(kasaHareketleri, depoOdemeleri, receteSatislari));
   itsRotalari(app, { tekiller: belgeler('its_tekil'), bildirimler: belgeler('its_bildirim') }, b.its ?? new SahteIts(), b.stok, b.bugun);
   depoRotalari(app, b.stok, { iadeler: belgeler('depo_iade'), odemeler: depoOdemeleri }, b.bugun, gunKapaliMi);
   emanetRotalari(app, b.stok, b.cari, belgeler('emanet'), b.bugun);
   gelirGiderRotalari(app, kasaHareketleri, gunKapaliMi, b.bugun);
+  receteSatisRotalari(
+    app,
+    { satislar: receteSatislari, icmaller: belgeler('icmal'), tahsilatlar: belgeler('kurum_tahsilat'), ayarlar: belgeler('eczane_ayar') },
+    b.kontroller,
+    b.stok,
+    b.cari,
+    gunKapaliMi,
+    b.bugun,
+  );
 
   app.get('/api/denetim', async (req) => b.kontroller.denetimKayitlari(req.kullanici!.eczaneId));
 

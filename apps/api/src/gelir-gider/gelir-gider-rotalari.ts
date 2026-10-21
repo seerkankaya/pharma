@@ -2,6 +2,7 @@ import { randomUUID } from 'node:crypto';
 import type { FastifyInstance } from 'fastify';
 import type { BelgeDeposu } from '../belge-deposu.js';
 import type { DepoOdemesi } from '../depo/depo.js';
+import type { ReceteSatisi } from '../recete-satisi/recete-satisi.js';
 import { eczaciGerekli } from '../oturum.js';
 import {
   GELIR_KATEGORILERI,
@@ -26,13 +27,15 @@ class KayitHatasi extends Error {
   }
 }
 
-/** Günün gelir-gider kayıtlarının ve nakit depo ödemelerinin kasaya etkisi; gün sonu bunu kullanır. */
-export function gunlukKasaEtkisi(hareketler: BelgeDeposu<KasaHareketi>, depoOdemeleri: BelgeDeposu<DepoOdemesi>) {
+/** Günün gelir-gider kayıtlarının, nakit depo ödemelerinin ve reçete hasta paylarının kasaya etkisi; gün sonu bunu kullanır. */
+export function gunlukKasaEtkisi(hareketler: BelgeDeposu<KasaHareketi>, depoOdemeleri: BelgeDeposu<DepoOdemesi>, receteSatislari?: BelgeDeposu<ReceteSatisi>) {
   return async (eczaneId: string, gun: string): Promise<KasaEtkisi> => {
-    const [h, o] = await Promise.all([hareketler.liste(eczaneId), depoOdemeleri.liste(eczaneId)]);
+    const [h, o, r] = await Promise.all([hareketler.liste(eczaneId), depoOdemeleri.liste(eczaneId), receteSatislari?.liste(eczaneId) ?? []]);
     const etki = kasaEtkisi(gecerliHareketler(h).filter((x) => x.tarih === gun));
     etki.nakitGiderKurus += o.filter((x) => x.tarih === gun && x.odemeTuru === 'nakit').reduce((t, x) => t + x.tutarKurus, 0);
-    return etki;
+    const hastaPayi = (tur: string) =>
+      r.filter((x) => x.tarih === gun && x.durum === 'satildi' && x.hastaOdemeTuru === tur).reduce((t, x) => t + x.tutarlar.hastaPayiKurus, 0);
+    return { ...etki, nakitReceteKurus: hastaPayi('nakit'), kartReceteKurus: hastaPayi('kart') };
   };
 }
 
