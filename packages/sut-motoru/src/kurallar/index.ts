@@ -47,12 +47,42 @@ function bulgu(b: KalemBaglami, id: string, seviye: Bulgu['seviye'], mesaj: stri
   };
 }
 
-function normalize(s: string): string {
-  return s.trim().toLocaleUpperCase('tr-TR');
+export function normalize(s: string): string {
+  return s
+    .trim()
+    .toLocaleUpperCase('tr-TR')
+    .replace(/İ/g, 'I')
+    .replace(/Ş/g, 'S')
+    .replace(/Ğ/g, 'G')
+    .replace(/Ü/g, 'U')
+    .replace(/Ö/g, 'O')
+    .replace(/Ç/g, 'C')
+    .replace(/\s+/g, ' ');
 }
 
+/**
+ * Kalemdeki etken madde kuraldaki etken maddeye uyuyor mu? Medula etken maddeyi tuzuyla yazabilir
+ * ("ATORVASTATIN KALSIYUM"); kural tuzsuz adla ("ATORVASTATIN") tutulur.
+ */
+export function etkenMaddeUyar(kuraldaki: string, kalemdeki: string): boolean {
+  const k = normalize(kuraldaki);
+  const r = normalize(kalemdeki);
+  return r === k || r.startsWith(`${k} `);
+}
+
+/** Hekim branşı raporsuz yazabilenlerden mi? Öyleyse rapor koşulları aranmaz. */
+function raporsuzYazabilir(b: KalemBaglami): boolean {
+  const izinli = b.kural?.raporsuzYazabilenBranslar;
+  return !!izinli?.length && bransVar(izinli, b.girdi.recete.hekim.brans);
+}
+
+/**
+ * Branş izinliler arasında mı? Kural kısa adı tutar ("Endokrinoloji"); Medula'daki uzun ad
+ * ("Endokrinoloji ve Metabolizma Hastalıkları") onunla başlıyorsa uyar.
+ */
 function bransVar(izinli: string[], brans: string): boolean {
-  return izinli.some((i) => normalize(i) === normalize(brans));
+  const b = normalize(brans);
+  return izinli.some((i) => b === normalize(i) || b.startsWith(`${normalize(i)} `));
 }
 
 /** Raporlar arasından kuralın istediği koşulları en çok karşılayanı seçer. */
@@ -130,8 +160,11 @@ export const kalemKurallari: KalemKurali[] = [
     id: 'RAPOR_GEREKLI',
     baslik: 'Rapor gerekiyorsa reçetede rapor var mı',
     calistir(b) {
-      if (!b.kural?.raporGerekli || b.raporlar.length > 0) return [];
-      return [bulgu(b, 'RAPOR_GEREKLI', 'kirmizi', 'Bu ilaç raporla ödenir, ancak reçetede bu etken maddeyi içeren rapor yok.')];
+      if (!b.kural?.raporGerekli || b.raporlar.length > 0 || raporsuzYazabilir(b)) return [];
+      const raporsuz = b.kural.raporsuzYazabilenBranslar?.length
+        ? ` Raporsuz yalnızca şu branşlar yazabilir: ${b.kural.raporsuzYazabilenBranslar.join(', ')}.`
+        : '';
+      return [bulgu(b, 'RAPOR_GEREKLI', 'kirmizi', `Bu ilaç raporla ödenir, ancak reçetede bu etken maddeyi içeren rapor yok.${raporsuz}`)];
     },
   },
   {
@@ -140,7 +173,7 @@ export const kalemKurallari: KalemKurali[] = [
     calistir(b) {
       const istenen = b.kural?.raporTuru;
       const rapor = enUygunRapor(b);
-      if (!istenen || !rapor || rapor.tur === istenen) return [];
+      if (!istenen || !rapor || rapor.tur === istenen || raporsuzYazabilir(b)) return [];
       const ad = istenen === 'saglik-kurulu' ? 'sağlık kurulu raporu' : 'uzman hekim raporu';
       return [bulgu(b, 'RAPOR_TURU', 'kirmizi', `Bu ilaç ${ad} ister; ${rapor.no} numaralı rapor farklı türde.`)];
     },
@@ -150,7 +183,7 @@ export const kalemKurallari: KalemKurali[] = [
     baslik: 'Rapor reçete tarihinde geçerli mi',
     calistir(b) {
       const rapor = enUygunRapor(b);
-      if (!rapor || aralikta(b.girdi.recete.tarih, rapor.baslangic, rapor.bitis)) return [];
+      if (!rapor || aralikta(b.girdi.recete.tarih, rapor.baslangic, rapor.bitis) || raporsuzYazabilir(b)) return [];
       return [
         bulgu(
           b,
@@ -167,7 +200,7 @@ export const kalemKurallari: KalemKurali[] = [
     calistir(b) {
       const izinli = b.kural?.raporDuzenleyenBranslar;
       const rapor = enUygunRapor(b);
-      if (!izinli?.length || !rapor) return [];
+      if (!izinli?.length || !rapor || raporsuzYazabilir(b)) return [];
       if (rapor.duzenleyenBranslar.some((x) => bransVar(izinli, x))) return [];
       return [
         bulgu(
@@ -175,6 +208,35 @@ export const kalemKurallari: KalemKurali[] = [
           'RAPOR_BRANS',
           'kirmizi',
           `Raporu düzenleyen branş (${rapor.duzenleyenBranslar.join(', ') || 'belirtilmemiş'}) uygun değil. İzin verilen: ${izinli.join(', ')}.`,
+        ),
+      ];
+    },
+  },
+  {
+    id: 'RAPOR_AZAMI_SURE',
+    baslik: 'Rapor süresi ödeme koşulundaki en uzun süreyi aşıyor mu',
+    calistir(b) {
+      const azami = b.kural?.raporAzamiGun;
+      const rapor = enUygunRapor(b);
+      if (!azami || !rapor || raporsuzYazabilir(b)) return [];
+      // Başlangıç ve bitiş günü dahil.
+      const sure = gunFarki(rapor.baslangic, rapor.bitis) + 1;
+      if (sure <= azami) return [];
+      return [bulgu(b, 'RAPOR_AZAMI_SURE', 'kirmizi', `${rapor.no} numaralı rapor ${sure} günlük; bu ilaç için rapor en fazla ${azami} gün olabilir.`)];
+    },
+  },
+  {
+    id: 'RAPOR_ICERIGI',
+    baslik: 'Raporda bulunması gereken bilgiler',
+    calistir(b) {
+      const istenen = b.kural?.raporIcerigi;
+      if (!istenen?.length || raporsuzYazabilir(b) || !enUygunRapor(b)) return [];
+      return [
+        bulgu(
+          b,
+          'RAPOR_ICERIGI',
+          'sari',
+          `Raporda şunların yazılı olduğunu kontrol edin: ${istenen.join('; ')}. Yazılı değilse SGK bedeli keser.`,
         ),
       ];
     },
@@ -207,7 +269,7 @@ export const kalemKurallari: KalemKurali[] = [
       if (doz === undefined) return [];
       const sonuc: Bulgu[] = [];
       const rapor = enUygunRapor(b);
-      const raporIlaci = rapor?.ilaclar.find((i) => normalize(i.etkenMadde) === normalize(b.kalem.etkenMadde));
+      const raporIlaci = rapor?.ilaclar.find((i) => etkenMaddeUyar(i.etkenMadde, b.kalem.etkenMadde) || etkenMaddeUyar(b.kalem.etkenMadde, i.etkenMadde));
       if (raporIlaci?.gunlukDoz !== undefined && doz > raporIlaci.gunlukDoz) {
         const birim = b.kalem.birim ? ` ${b.kalem.birim}` : '';
         sonuc.push(
@@ -240,7 +302,7 @@ export const kalemKurallari: KalemKurali[] = [
       const gecmis = b.girdi.gecmis ?? [];
       const sonuc: Bulgu[] = [];
       for (const g of gecmis) {
-        if (normalize(g.etkenMadde) !== normalize(b.kalem.etkenMadde)) continue;
+        if (!etkenMaddeUyar(g.etkenMadde, b.kalem.etkenMadde) && !etkenMaddeUyar(b.kalem.etkenMadde, g.etkenMadde)) continue;
         const gunlukDoz = g.gunlukDoz ?? b.kalem.gunlukDoz;
         const icerik = g.kutuIcerik ?? b.kalem.kutuIcerik;
         if (!gunlukDoz || !icerik) continue;

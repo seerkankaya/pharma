@@ -107,6 +107,19 @@ export interface IlacKurali {
   raporGerekli?: boolean;
   raporTuru?: RaporTuru;
   raporDuzenleyenBranslar?: string[];
+  /**
+   * Bu branşlardaki hekimler raporsuz reçete edebilir; diğer hekimler için rapor gerekir.
+   * SUT'taki "X uzman hekimlerince veya bu hekimlerin düzenlediği uzman hekim raporuna dayanılarak
+   * tüm hekimlerce reçete edilir" kalıbı.
+   */
+  raporsuzYazabilenBranslar?: string[];
+  /** Raporun en uzun geçerlilik süresi (gün); daha uzun süreli rapor kabul edilmez */
+  raporAzamiGun?: number;
+  /**
+   * Motorun reçeteden denetleyemediği, raporda yazılı olması gereken bilgiler
+   * (örn. LDL değeri, KMY T skoru). Eczacı her biri için raporu kontrol ettiğini onaylar.
+   */
+  raporIcerigi?: string[];
   receteEdenBranslar?: string[];
   /** ICD-10 önekleri; rapordaki tanılardan en az biri bunlardan biriyle başlamalı */
   izinliTanilar?: string[];

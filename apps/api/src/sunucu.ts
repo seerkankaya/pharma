@@ -7,6 +7,9 @@ import { PgHesapDeposu, PgKontrolDeposu, PgKuralDeposu } from './vt/pg-depolar.j
 import { PgCariDeposu } from './vt/pg-cari-deposu.js';
 import { PgStokDeposu } from './vt/pg-stok-deposu.js';
 import { PgGunSonuDeposu } from './vt/pg-gun-sonu-deposu.js';
+import { PgEk4aDeposu } from './vt/pg-ek4a-deposu.js';
+import { DegisenEk4a } from './ek4a/ek4a.js';
+import { haritaListesi } from '@scalpiq/sut-motoru';
 
 // Veritabanı adresi DATABASE_URL ile verilir; yoksa docker-compose.yml'deki yerel PostgreSQL kullanılır.
 const havuz = havuzOlustur(process.env.DATABASE_URL ?? 'postgres://scalpiq:scalpiq@127.0.0.1:5432/scalpiq');
@@ -17,9 +20,17 @@ const kurallar = new PgKuralDeposu(havuz);
 // Kitaplık boşsa örnek kurallarla başlar. Örnek kurallar ekranda "örnek kural" diye işaretlidir.
 await kurallar.bossaDoldur(ornekIlacKurallari);
 
-// Şimdilik örnek EK-4/A ile, Medula'ya gitmeden çalışır.
+// Yüklenmiş EK-4/A varsa en son yayımlanan kullanılır; yoksa örnek liste. Medula'ya şimdilik gidilmez.
+const ek4aDeposu = new PgEk4aDeposu(havuz);
+const aktifEk4a = await ek4aDeposu.aktif();
+const ek4a = aktifEk4a
+  ? new DegisenEk4a(haritaListesi(aktifEk4a.surum.yayimTarihi, aktifEk4a.kayitlar), aktifEk4a.kayitlar, aktifEk4a.surum)
+  : new DegisenEk4a(ornekEk4a);
+if (aktifEk4a) console.log(`EK-4/A: ${aktifEk4a.surum.yayimTarihi} tarihli liste, ${aktifEk4a.kayitlar.length} ilaç`);
+
 const app = uygulamaOlustur({
-  ek4a: ornekEk4a,
+  ek4a,
+  ek4aDeposu,
   kurallar,
   kontroller: new PgKontrolDeposu(havuz),
   hesaplar: new PgHesapDeposu(havuz),

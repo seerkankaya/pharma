@@ -25,9 +25,13 @@ import type { CariDeposu } from './cari/cari.js';
 import { cariRotalari } from './cari/cari-rotalari.js';
 import type { GunSonuDeposu } from './rapor/rapor.js';
 import { raporRotalari } from './rapor/rapor-rotalari.js';
+import { BellekEk4aDeposu, DegisenEk4a, type Ek4aDeposu } from './ek4a/ek4a.js';
+import { ek4aRotalari } from './ek4a/ek4a-rotalari.js';
 
 export interface Bagimliliklar {
+  /** Kontrolde kullanılan EK-4/A. DegisenEk4a verilirse yüklenen yeni liste sunucu yeniden başlamadan geçerli olur. */
   ek4a: Ek4aListesi;
+  ek4aDeposu?: Ek4aDeposu;
   kurallar: KuralDeposu;
   kontroller: KontrolDeposu;
   hesaplar: HesapDeposu;
@@ -45,6 +49,7 @@ export interface Bagimliliklar {
 
 export function uygulamaOlustur(b: Bagimliliklar) {
   const app = Fastify({ logger: false });
+  const ek4a = b.ek4a instanceof DegisenEk4a ? b.ek4a : new DegisenEk4a(b.ek4a);
 
   oturumDenetimi(app, b.hesaplar);
   hesapRotalari(app, b.hesaplar, b.guvenliCerez ?? false);
@@ -61,7 +66,7 @@ export function uygulamaOlustur(b: Bagimliliklar) {
     const ilacKurallari = etkinKurallar(await b.kurallar.listele());
     let sonuc: KontrolSonucu;
     try {
-      sonuc = kontrolEt({ recete, gecmis, bugun: b.bugun(), ek4a: b.ek4a, ilacKurallari, ayarlar: b.ayarlar });
+      sonuc = kontrolEt({ recete, gecmis, bugun: b.bugun(), ek4a, ilacKurallari, ayarlar: b.ayarlar });
     } catch (e) {
       return reply.code(400).send({ hata: (e as Error).message });
     }
@@ -116,9 +121,10 @@ export function uygulamaOlustur(b: Bagimliliklar) {
   });
 
   kuralRotalari(app, b.kurallar, b.bugun);
-  stokRotalari(app, b.stok, b.cari, b.ek4a, b.bugun);
+  stokRotalari(app, b.stok, b.cari, ek4a, b.bugun);
   cariRotalari(app, b.cari);
-  alisRotalari(app, b.stok, b.ek4a, b.bugun);
+  alisRotalari(app, b.stok, ek4a, b.bugun);
+  ek4aRotalari(app, b.ek4aDeposu ?? new BellekEk4aDeposu(), ek4a, b.bugun);
   raporRotalari(app, b.stok, b.cari, b.gunSonu, b.bugun);
 
   app.get('/api/denetim', async (req) => b.kontroller.denetimKayitlari(req.kullanici!.eczaneId));

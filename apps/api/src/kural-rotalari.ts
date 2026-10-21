@@ -1,5 +1,5 @@
 import type { FastifyInstance } from 'fastify';
-import { cakisanKural, gunFarki, kuralDogrula, type IlacKurali } from '@scalpiq/sut-motoru';
+import { cakisanKural, gunFarki, kuralDogrula, sutTaslakKurallari, type IlacKurali } from '@scalpiq/sut-motoru';
 import type { KuralDeposu } from './kural-deposu.js';
 import { kuralYetkisiGerekli } from './oturum.js';
 
@@ -29,6 +29,34 @@ export function kuralRotalari(app: FastifyInstance, depo: KuralDeposu, bugun: ()
     );
     return reply.code(y.kod).send(y.govde);
   });
+
+  // Taslak, onaylanmadan önce düzeltilebilir. Onaylı ve örnek kurallar düzenlenmez.
+  app.put<{ Params: { id: string }; Body: IlacKurali }>('/api/kurallar/:id', { preHandler: kuralYetkisiGerekli }, async (req, reply) => {
+    const { onay: _onay, ornek: _ornek, ...kural } = { ...(req.body ?? {}), id: req.params.id } as IlacKurali;
+    const hatalar = kuralDogrula(kural);
+    if (hatalar.length) return reply.code(400).send({ hata: 'Kural geçersiz', hatalar });
+    const y = await depo.degistir<Yanit>((kurallar) => {
+      const mevcut = kurallar.find((k) => k.id === kural.id);
+      if (!mevcut) return { sonuc: hata(404, 'Kural bulunamadı') };
+      if (mevcut.onay || mevcut.ornek) return { sonuc: hata(409, 'Yalnızca taslak kural düzenlenebilir') };
+      return { sonuc: { kod: 200, govde: kural }, kaydet: [kural] };
+    });
+    return reply.code(y.kod).send(y.govde);
+  });
+
+  // ScalpIQ'nun SUT'tan kodladığı taslaklar. Kitaplıkta olmayanlar eklenir; var olanlara dokunulmaz.
+  app.get('/api/kurallar/sut-taslaklari', async () => {
+    const mevcut = new Set((await depo.listele()).map((k) => k.id));
+    return { toplam: sutTaslakKurallari.length, eksik: sutTaslakKurallari.filter((k) => !mevcut.has(k.id)).length };
+  });
+
+  app.post('/api/kurallar/sut-taslaklari', { preHandler: kuralYetkisiGerekli }, async () =>
+    depo.degistir((kurallar) => {
+      const mevcut = new Set(kurallar.map((k) => k.id));
+      const eklenecek = sutTaslakKurallari.filter((k) => !mevcut.has(k.id));
+      return { sonuc: { eklenen: eklenecek.length }, kaydet: eklenecek };
+    }),
+  );
 
   app.post<{ Params: { id: string } }>('/api/kurallar/:id/onayla', { preHandler: kuralYetkisiGerekli }, async (req, reply) => {
     const onaylayan = req.kullanici!.adSoyad;

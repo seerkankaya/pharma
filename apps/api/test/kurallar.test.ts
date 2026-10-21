@@ -73,4 +73,32 @@ describe('kural kitaplığı', () => {
     expect((await app('DELETE', '/api/kurallar/GERCEK-1')).statusCode).toBe(204);
     expect((await app('GET', '/api/kurallar')).json()).toEqual([]);
   });
+
+  it('taslak düzenlenir; onaylı kural düzenlenemez ve onay düzenlemeyle eklenemez', async () => {
+    const app = await kur([kural(), kural({ id: 'ONAYLI', onay: { onaylayan: 'Ecz. A', tarih: '2026-01-01' } })]);
+    const r = await app('PUT', '/api/kurallar/GERCEK-1', { ...kural({ aciklama: 'Düzeltildi' }), onay: { onaylayan: 'Sahte', tarih: '2026-01-01' } });
+    expect(r.statusCode).toBe(200);
+    const k = (await app('GET', '/api/kurallar')).json().find((x: { id: string }) => x.id === 'GERCEK-1');
+    expect(k.aciklama).toBe('Düzeltildi');
+    expect(k.onay).toBeUndefined();
+    expect((await app('PUT', '/api/kurallar/ONAYLI', kural({ id: 'ONAYLI' }))).statusCode).toBe(409);
+    expect((await app('PUT', '/api/kurallar/YOK', kural())).statusCode).toBe(404);
+  });
+
+  it('SUT taslakları bir kez eklenir, var olana dokunulmaz', async () => {
+    const app = await kur();
+    const once = (await app('GET', '/api/kurallar/sut-taslaklari')).json();
+    expect(once.eksik).toBe(once.toplam);
+    expect((await app('POST', '/api/kurallar/sut-taslaklari')).json()).toEqual({ eklenen: once.toplam });
+    expect((await app('POST', '/api/kurallar/sut-taslaklari')).json()).toEqual({ eklenen: 0 });
+    const kurallar = (await app('GET', '/api/kurallar')).json();
+    expect(kurallar).toHaveLength(once.toplam);
+    expect(kurallar.every((k: { onay?: unknown }) => !k.onay)).toBe(true);
+  });
+
+  it('SUT taslaklarını yalnızca kural yetkili eczacı ekler', async () => {
+    const o = await ortamKur();
+    const calisan = await girisYap(o.app, o.kullanicilar.calisan.eposta);
+    expect((await calisan('POST', '/api/kurallar/sut-taslaklari')).statusCode).toBe(403);
+  });
 });
