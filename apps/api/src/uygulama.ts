@@ -27,6 +27,9 @@ import type { GunSonuDeposu } from './rapor/rapor.js';
 import { raporRotalari } from './rapor/rapor-rotalari.js';
 import { BellekEk4aDeposu, DegisenEk4a, type Ek4aDeposu } from './ek4a/ek4a.js';
 import { ek4aRotalari } from './ek4a/ek4a-rotalari.js';
+import { bellekBelgeDepolari, type BelgeDeposuUretici } from './belge-deposu.js';
+import { SahteIts, type ItsIstemcisi } from './its/its.js';
+import { itsRotalari } from './its/its-rotalari.js';
 
 export interface Bagimliliklar {
   /** Kontrolde kullanılan EK-4/A. DegisenEk4a verilirse yüklenen yeni liste sunucu yeniden başlamadan geçerli olur. */
@@ -40,6 +43,10 @@ export interface Bagimliliklar {
   gunSonu: GunSonuDeposu;
   ayarlar: MotorAyarlari;
   medula: MedulaIstemcisi;
+  /** Yeni modüllerin (İTS ...) kayıt tabloları. Verilmezse bellekte tutulur. */
+  belgeler?: BelgeDeposuUretici;
+  /** Verilmezse İTS'ye gitmeyen sahte istemci kullanılır. */
+  its?: ItsIstemcisi;
   /** Kontrol gününü verir (testlerde sabitlenir) */
   bugun: () => string;
   /** Oturum çerezi yalnızca HTTPS üzerinden gönderilsin mi (canlıda açık) */
@@ -126,6 +133,8 @@ export function uygulamaOlustur(b: Bagimliliklar) {
   alisRotalari(app, b.stok, ek4a, b.bugun);
   ek4aRotalari(app, b.ek4aDeposu ?? new BellekEk4aDeposu(), ek4a, b.bugun);
   raporRotalari(app, b.stok, b.cari, b.gunSonu, b.bugun);
+  const belgeler = b.belgeler ?? bellekBelgeDepolari();
+  itsRotalari(app, { tekiller: belgeler('its_tekil'), bildirimler: belgeler('its_bildirim') }, b.its ?? new SahteIts(), b.stok, b.bugun);
 
   app.get('/api/denetim', async (req) => b.kontroller.denetimKayitlari(req.kullanici!.eczaneId));
 

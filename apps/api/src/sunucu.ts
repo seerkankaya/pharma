@@ -9,6 +9,8 @@ import { PgStokDeposu } from './vt/pg-stok-deposu.js';
 import { PgGunSonuDeposu } from './vt/pg-gun-sonu-deposu.js';
 import { PgEk4aDeposu } from './vt/pg-ek4a-deposu.js';
 import { DegisenEk4a } from './ek4a/ek4a.js';
+import { pgBelgeDepolari } from './vt/pg-belge-deposu.js';
+import { SahteIts } from './its/its.js';
 import { haritaListesi } from '@scalpiq/sut-motoru';
 
 // Veritabanı adresi DATABASE_URL ile verilir; yoksa docker-compose.yml'deki yerel PostgreSQL kullanılır.
@@ -39,6 +41,9 @@ const app = uygulamaOlustur({
   gunSonu: new PgGunSonuDeposu(havuz),
   ayarlar: varsayilanAyarlar,
   medula: new SahteMedula(),
+  belgeler: pgBelgeDepolari(havuz),
+  // İTS teknik belgesi ve eczane kullanıcı bilgileri gelene kadar İTS'ye gidilmez.
+  its: new SahteIts(),
   guvenliCerez: process.env.NODE_ENV === 'production',
   // Örnek reçeteler 20.10.2026 tarihli; demo için gün SCALPIQ_BUGUN ile sabitlenebilir.
   bugun: () => process.env.SCALPIQ_BUGUN ?? turkiyeGunu(new Date()),

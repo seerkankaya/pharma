@@ -14,6 +14,7 @@ import { StokHatasi, type StokHareketi } from '../src/stok/stok.js';
 import { PgGunSonuDeposu } from '../src/vt/pg-gun-sonu-deposu.js';
 import { PgEk4aDeposu } from '../src/vt/pg-ek4a-deposu.js';
 import { GunZatenKapaliHatasi, type GunSonu } from '../src/rapor/rapor.js';
+import { PgBelgeDeposu } from '../src/vt/pg-belge-deposu.js';
 
 // PostgreSQL depolarının testleri. Yalnızca TEST_DATABASE_URL verildiğinde çalışır;
 // veritabanındaki her şeyi siler, bu yüzden yalnızca test için açılmış bir veritabanı verin.
@@ -25,7 +26,7 @@ describe.skipIf(!adres)('PostgreSQL depoları', () => {
   beforeAll(async () => {
     havuz = havuzOlustur(adres!);
     await havuz.query('drop schema public cascade; create schema public;');
-    expect(await gocleriUygula(havuz)).toEqual(['001_ilk.sql', '002_stok.sql', '003_alis.sql', '004_cari.sql', '005_gun_sonu.sql', '006_ek4a.sql', '007_ek4a_pasif.sql']);
+    expect(await gocleriUygula(havuz)).toEqual(['001_ilk.sql', '002_stok.sql', '003_alis.sql', '004_cari.sql', '005_gun_sonu.sql', '006_ek4a.sql', '007_ek4a_pasif.sql', '008_its.sql']);
   });
   afterAll(() => havuz?.end());
 
@@ -294,5 +295,30 @@ describe.skipIf(!adres)('PostgreSQL depoları', () => {
       ['2026-08-01', 1],
     ]);
     await expect(havuz.query('delete from ek4a_kaydi')).rejects.toThrow('değiştirilemez');
+  });
+  it('belge deposu: eczane başına ayrı, değişiklikler sırayla ve hata olursa yazılmaz', async () => {
+    const { e } = await eczaneVeKullanici();
+    const { e: baska } = await eczaneVeKullanici();
+    const depo = new PgBelgeDeposu<{ id: string; sayi: number }>(havuz, 'its_tekil');
+    expect(() => new PgBelgeDeposu(havuz, 'its_tekil; drop table x')).toThrow('Geçersiz tablo');
+
+    await depo.degistir(e.id, [], () => ({ sonuc: null, yaz: [{ id: 'a', sayi: 1 }, { id: 'a', sayi: 2 }] }));
+    expect(await depo.al(e.id, 'a')).toEqual({ id: 'a', sayi: 2 });
+    expect(await depo.al(baska.id, 'a')).toBeUndefined();
+
+    // Aynı belgeyi artıran 20 eşzamanlı işlem birbirinin yazdığını kaybetmez.
+    await Promise.all(
+      Array.from({ length: 20 }, () =>
+        depo.degistir(e.id, ['a'], (m) => ({ sonuc: null, yaz: [{ id: 'a', sayi: m.get('a')!.sayi + 1 }] })),
+      ),
+    );
+    expect((await depo.al(e.id, 'a'))!.sayi).toBe(22);
+
+    await expect(
+      depo.degistir(e.id, ['a'], () => {
+        throw new Error('vazgeç');
+      }),
+    ).rejects.toThrow('vazgeç');
+    expect(await depo.liste(e.id)).toEqual([{ id: 'a', sayi: 22 }]);
   });
 });
