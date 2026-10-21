@@ -25,7 +25,7 @@ describe.skipIf(!adres)('PostgreSQL depoları', () => {
   beforeAll(async () => {
     havuz = havuzOlustur(adres!);
     await havuz.query('drop schema public cascade; create schema public;');
-    expect(await gocleriUygula(havuz)).toEqual(['001_ilk.sql', '002_stok.sql', '003_alis.sql', '004_cari.sql', '005_gun_sonu.sql', '006_ek4a.sql']);
+    expect(await gocleriUygula(havuz)).toEqual(['001_ilk.sql', '002_stok.sql', '003_alis.sql', '004_cari.sql', '005_gun_sonu.sql', '006_ek4a.sql', '007_ek4a_pasif.sql']);
   });
   afterAll(() => havuz?.end());
 
@@ -273,7 +273,7 @@ describe.skipIf(!adres)('PostgreSQL depoları', () => {
     await depo.ekle({ yayimTarihi: '2026-09-01', yukleyen: 'X', kullaniciId: k.id }, cok);
     const yeni = await depo.ekle({ yayimTarihi: '2026-10-01', dosyaAdi: 'ek4a.xlsx', yukleyen: 'Y', kullaniciId: k.id }, [
       { ...kayit('8690000000011', 'KARDIOX', ['8690000000004']), kamuNo: 'A1', esdegerGrubu: 'E1' },
-      kayit('8690000000028', 'ONKOMAB'),
+      { ...kayit('8690000000028', 'ONKOMAB'), pasifAraliklari: [{ baslangic: '2026-03-02', bitis: '2026-07-06' }, { baslangic: '2026-09-15' }] },
     ]);
     // Daha eski yayım tarihli sürüm sonradan yüklense de aktif olan en son yayımlanandır.
     await depo.ekle({ yayimTarihi: '2026-08-01', yukleyen: 'Z', kullaniciId: k.id }, [kayit('8690000000035', 'ESKI')]);
@@ -281,7 +281,12 @@ describe.skipIf(!adres)('PostgreSQL depoları', () => {
     expect(aktif?.surum).toEqual(yeni);
     expect(aktif?.kayitlar).toEqual([
       { barkod: '8690000000011', ad: 'KARDIOX', kamuNo: 'A1', esdegerGrubu: 'E1', eskiBarkodlar: ['8690000000004'] },
-      { barkod: '8690000000028', ad: 'ONKOMAB', eskiBarkodlar: [] },
+      {
+        barkod: '8690000000028',
+        ad: 'ONKOMAB',
+        eskiBarkodlar: [],
+        pasifAraliklari: [{ baslangic: '2026-03-02', bitis: '2026-07-06' }, { baslangic: '2026-09-15' }],
+      },
     ]);
     expect((await depo.surumler()).map((s) => [s.yayimTarihi, s.kayitSayisi])).toEqual([
       ['2026-10-01', 2],

@@ -1,5 +1,5 @@
 import type { FastifyInstance } from 'fastify';
-import { cakisanKural, gunFarki, kuralDogrula, sutTaslakKurallari, type IlacKurali } from '@scalpiq/sut-motoru';
+import { cakisanKural, gunFarki, kuralDogrula, SUT_SURUMU, sutTaslakKurallari, type IlacKurali } from '@scalpiq/sut-motoru';
 import type { KuralDeposu } from './kural-deposu.js';
 import { kuralYetkisiGerekli } from './oturum.js';
 
@@ -14,6 +14,49 @@ interface Yanit {
 }
 
 const hata = (kod: number, mesaj: string, ek: object = {}): Yanit => ({ kod, govde: { hata: mesaj, ...ek } });
+
+/** Kuralın içeriği; kimlik, geçerlilik ve onay dışarıda bırakılır. Anahtar sırası karşılaştırmayı etkilemez. */
+function icerik(k: IlacKurali): string {
+  const { id: _i, gecerlilik: _g, onay: _o, ...geri } = k;
+  const sirala = (v: unknown): unknown =>
+    Array.isArray(v)
+      ? v.map(sirala)
+      : v && typeof v === 'object'
+        ? Object.fromEntries(
+            Object.entries(v)
+              .filter(([, x]) => x !== undefined)
+              .sort(([a], [b]) => a.localeCompare(b))
+              .map(([a, x]) => [a, sirala(x)]),
+          )
+        : v;
+  return JSON.stringify(sirala(geri));
+}
+
+/**
+ * Kitaplıktaki kuralları güncel SUT taslaklarıyla karşılaştırır:
+ * - kitaplıkta olmayan taslak eklenir,
+ * - onaylanmamış eski taslak güncel metinle değiştirilir,
+ * - onaylı ama metni değişmiş kural için bugünden geçerli yeni sürüm taslağı açılır. Eczacı eskisini kapatıp yenisini onaylar;
+ *   onaylı kural hiçbir zaman kendiliğinden değişmez.
+ */
+function taslakPlani(kurallar: IlacKurali[], bugun: string) {
+  const kayitli = new Map(kurallar.map((k) => [k.id, k]));
+  const eklenecek: IlacKurali[] = [];
+  const guncellenecek: IlacKurali[] = [];
+  const yeniSurum: IlacKurali[] = [];
+  for (const t of sutTaslakKurallari) {
+    const k = kayitli.get(t.id);
+    if (!k) eklenecek.push(t);
+    else if (icerik(k) === icerik(t)) continue;
+    else if (!k.onay) guncellenecek.push({ ...t, gecerlilik: k.gecerlilik });
+    else if (!k.gecerlilik.bitis) {
+      const id = `${t.id}-${SUT_SURUMU}`;
+      const surum = kayitli.get(id);
+      if (!surum || (!surum.onay && icerik(surum) !== icerik(t))) yeniSurum.push({ ...t, id, gecerlilik: { baslangic: surum?.gecerlilik.baslangic ?? bugun } });
+    }
+  }
+  return { eklenecek, guncellenecek, yeniSurum };
+}
 
 export function kuralRotalari(app: FastifyInstance, depo: KuralDeposu, bugun: () => string) {
   app.get('/api/kurallar', async () => depo.listele());
@@ -46,15 +89,22 @@ export function kuralRotalari(app: FastifyInstance, depo: KuralDeposu, bugun: ()
 
   // ScalpIQ'nun SUT'tan kodladığı taslaklar. Kitaplıkta olmayanlar eklenir; var olanlara dokunulmaz.
   app.get('/api/kurallar/sut-taslaklari', async () => {
-    const mevcut = new Set((await depo.listele()).map((k) => k.id));
-    return { toplam: sutTaslakKurallari.length, eksik: sutTaslakKurallari.filter((k) => !mevcut.has(k.id)).length };
+    const p = taslakPlani(await depo.listele(), bugun());
+    return {
+      toplam: sutTaslakKurallari.length,
+      eksik: p.eklenecek.length,
+      guncellenecek: p.guncellenecek.length,
+      yeniSurum: p.yeniSurum.map((k) => k.id),
+    };
   });
 
   app.post('/api/kurallar/sut-taslaklari', { preHandler: kuralYetkisiGerekli }, async () =>
     depo.degistir((kurallar) => {
-      const mevcut = new Set(kurallar.map((k) => k.id));
-      const eklenecek = sutTaslakKurallari.filter((k) => !mevcut.has(k.id));
-      return { sonuc: { eklenen: eklenecek.length }, kaydet: eklenecek };
+      const p = taslakPlani(kurallar, bugun());
+      return {
+        sonuc: { eklenen: p.eklenecek.length, guncellenen: p.guncellenecek.length, yeniSurum: p.yeniSurum.map((k) => k.id) },
+        kaydet: [...p.eklenecek, ...p.guncellenecek, ...p.yeniSurum],
+      };
     }),
   );
 
