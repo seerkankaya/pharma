@@ -37,6 +37,8 @@ import { depoRotalari } from './depo/depo-rotalari.js';
 import { emanetRotalari } from './emanet/emanet-rotalari.js';
 import { gelirGiderRotalari, gunlukKasaEtkisi } from './gelir-gider/gelir-gider-rotalari.js';
 import { receteSatisRotalari } from './recete-satisi/recete-satisi-rotalari.js';
+import { etkilesimKurallari, etkilesimRotalari } from './etkilesim/etkilesim-rotalari.js';
+import { etkilesimKontrol, type EtkilesimKurali } from './etkilesim/etkilesim.js';
 import type { ReceteSatisi } from './recete-satisi/recete-satisi.js';
 
 export interface Bagimliliklar {
@@ -65,6 +67,9 @@ export interface Bagimliliklar {
 export function uygulamaOlustur(b: Bagimliliklar) {
   const app = Fastify({ logger: false });
   const ek4a = b.ek4a instanceof DegisenEk4a ? b.ek4a : new DegisenEk4a(b.ek4a);
+  const belgeler = b.belgeler ?? bellekBelgeDepolari();
+  const etkilesimDeposu = belgeler<EtkilesimKurali>('etkilesim_kurali');
+  const eczaneEtkilesimleri = etkilesimKurallari(etkilesimDeposu);
 
   oturumDenetimi(app, b.hesaplar);
   hesapRotalari(app, b.hesaplar, b.guvenliCerez ?? false);
@@ -88,7 +93,9 @@ export function uygulamaOlustur(b: Bagimliliklar) {
 
     const kontrolId = randomUUID();
     await b.kontroller.ekle({ id: kontrolId, eczaneId: req.kullanici!.eczaneId, kullaniciId: req.kullanici!.id, recete, sonuc });
-    return { kontrolId, ...sonuc };
+    // Etkileşimler SUT sonucuna karışmaz ve gönderimi kilitlemez; eczacının hastayı uyarması içindir.
+    const klinikUyarilar = etkilesimKontrol(recete.kalemler, await eczaneEtkilesimleri(req.kullanici!.eczaneId), Array.isArray(gecmis) ? gecmis : []);
+    return { kontrolId, ...sonuc, klinikUyarilar };
   });
 
   /** Kontrol edilmiş reçeteyi Medula'ya gönderir; tekli ve toplu gönderim aynı kuralları kullanır. */
@@ -161,7 +168,6 @@ export function uygulamaOlustur(b: Bagimliliklar) {
   cariRotalari(app, b.cari);
   alisRotalari(app, b.stok, ek4a, b.bugun);
   ek4aRotalari(app, b.ek4aDeposu ?? new BellekEk4aDeposu(), ek4a, b.bugun);
-  const belgeler = b.belgeler ?? bellekBelgeDepolari();
   const kasaHareketleri = belgeler<KasaHareketi>('kasa_hareketi');
   const depoOdemeleri = belgeler<DepoOdemesi>('depo_odeme');
   const receteSatislari = belgeler<ReceteSatisi>('recete_satisi');
@@ -171,6 +177,7 @@ export function uygulamaOlustur(b: Bagimliliklar) {
   depoRotalari(app, b.stok, { iadeler: belgeler('depo_iade'), odemeler: depoOdemeleri }, b.bugun, gunKapaliMi);
   emanetRotalari(app, b.stok, b.cari, belgeler('emanet'), b.bugun);
   gelirGiderRotalari(app, kasaHareketleri, gunKapaliMi, b.bugun);
+  etkilesimRotalari(app, etkilesimDeposu, b.bugun);
   receteSatisRotalari(
     app,
     { satislar: receteSatislari, icmaller: belgeler('icmal'), tahsilatlar: belgeler('kurum_tahsilat'), ayarlar: belgeler('eczane_ayar') },
