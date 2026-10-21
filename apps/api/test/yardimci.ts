@@ -7,6 +7,7 @@ import { BellekStokDeposu } from '../src/stok/stok-deposu.js';
 import { BellekCariDeposu } from '../src/cari/cari.js';
 import { BellekGunSonuDeposu } from '../src/rapor/rapor.js';
 import { uygulamaOlustur } from '../src/uygulama.js';
+import { SahteIts } from '../src/its/its.js';
 
 export const PAROLA = 'cok-gizli-parola';
 
@@ -32,6 +33,7 @@ export async function girisYap(app: Uygulama, eposta: string, parola = PAROLA) {
 export async function kur(kurallar: IlacKurali[] = []) {
   const hesaplar = new BellekHesapDeposu();
   const medula = new SahteMedula();
+  const its = new SahteIts();
   const kontroller = new BellekKontrolDeposu();
   const cari = new BellekCariDeposu();
   const stok = new BellekStokDeposu(cari.defter);
@@ -55,7 +57,8 @@ export async function kur(kurallar: IlacKurali[] = []) {
     gunSonu: new BellekGunSonuDeposu(),
     ayarlar: varsayilanAyarlar,
     medula,
+    its,
     bugun: () => '2026-10-20',
   });
-  return { app, medula, kontroller, stok, hesaplar, kullanicilar, eczaneler: { kaya, deniz } };
+  return { app, medula, its, kontroller, stok, hesaplar, kullanicilar, eczaneler: { kaya, deniz } };
 }
