@@ -31,6 +31,7 @@ import { bellekBelgeDepolari, type BelgeDeposuUretici } from './belge-deposu.js'
 import { SahteIts, type ItsIstemcisi } from './its/its.js';
 import { itsRotalari } from './its/its-rotalari.js';
 import { depoRotalari } from './depo/depo-rotalari.js';
+import { emanetRotalari } from './emanet/emanet-rotalari.js';
 
 export interface Bagimliliklar {
   /** Kontrolde kullanılan EK-4/A. DegisenEk4a verilirse yüklenen yeni liste sunucu yeniden başlamadan geçerli olur. */
@@ -137,6 +138,7 @@ export function uygulamaOlustur(b: Bagimliliklar) {
   const belgeler = b.belgeler ?? bellekBelgeDepolari();
   itsRotalari(app, { tekiller: belgeler('its_tekil'), bildirimler: belgeler('its_bildirim') }, b.its ?? new SahteIts(), b.stok, b.bugun);
   depoRotalari(app, b.stok, { iadeler: belgeler('depo_iade'), odemeler: belgeler('depo_odeme') }, b.bugun);
+  emanetRotalari(app, b.stok, b.cari, belgeler('emanet'), b.bugun);
 
   app.get('/api/denetim', async (req) => b.kontroller.denetimKayitlari(req.kullanici!.eczaneId));
 

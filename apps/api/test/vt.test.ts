@@ -26,7 +26,7 @@ describe.skipIf(!adres)('PostgreSQL depoları', () => {
   beforeAll(async () => {
     havuz = havuzOlustur(adres!);
     await havuz.query('drop schema public cascade; create schema public;');
-    expect(await gocleriUygula(havuz)).toEqual(['001_ilk.sql', '002_stok.sql', '003_alis.sql', '004_cari.sql', '005_gun_sonu.sql', '006_ek4a.sql', '007_ek4a_pasif.sql', '008_its.sql', '009_depo.sql']);
+    expect(await gocleriUygula(havuz)).toEqual(['001_ilk.sql', '002_stok.sql', '003_alis.sql', '004_cari.sql', '005_gun_sonu.sql', '006_ek4a.sql', '007_ek4a_pasif.sql', '008_its.sql', '009_depo.sql', '010_emanet.sql']);
   });
   afterAll(() => havuz?.end());
 
@@ -343,5 +343,16 @@ describe.skipIf(!adres)('PostgreSQL depoları', () => {
     await expect(havuz.query('delete from depo_odeme')).resolves.toBeDefined();
     await new PgBelgeDeposu(havuz, 'depo_odeme').degistir(e.id, [], () => ({ sonuc: null, yaz: [{ id: 'o1' }] }));
     await expect(havuz.query('delete from depo_odeme')).rejects.toThrow('değiştirilemez');
+  });
+  it('emanet hareketi stoktan düşer, emanet belgesi aynı işlemde yazılır', async () => {
+    const { e, k } = await eczaneVeKullanici();
+    const depo = new PgStokDeposu(havuz);
+    const barkod = '8690000000012';
+    const h = (tur: StokHareketi['tur'], miktar: number): StokHareketi => ({ barkod, tur, miktar, partiNo: 'P', skt: '2027-01-01', kullaniciId: k.id, zaman: new Date().toISOString() });
+    await depo.islem(e.id, [barkod], () => ({ sonuc: null, hareketler: [h('giris', 4)] }));
+    await depo.islem(e.id, [barkod], () => ({ sonuc: null, hareketler: [h('emanet', -3)], belgeler: [{ tablo: 'emanet', belge: { id: 'E1', durum: 'acik' } }] }));
+    expect((await depo.stok(e.id)).get(barkod)![0]!.miktar).toBe(1);
+    expect(await new PgBelgeDeposu(havuz, 'emanet').al(e.id, 'E1')).toEqual({ id: 'E1', durum: 'acik' });
+    await expect(depo.islem(e.id, [barkod], () => ({ sonuc: null, hareketler: [h('emanet', 1)] }))).rejects.toThrow();
   });
 });
