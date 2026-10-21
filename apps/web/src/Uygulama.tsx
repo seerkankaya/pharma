@@ -29,7 +29,20 @@ interface Ornek {
   gecmis?: GecmisVerilis[];
 }
 
-type Kontrol = KontrolSonucu & { kontrolId: string };
+interface KlinikUyari {
+  kuralId: string;
+  siddet: 'kontrendike' | 'ciddi' | 'orta';
+  mesaj: string;
+  oneri?: string;
+  kaynak: string;
+  ilaclar: [string, string];
+  gecmistenMi?: boolean;
+  ornekKural?: boolean;
+}
+
+type Kontrol = KontrolSonucu & { kontrolId: string; klinikUyarilar?: KlinikUyari[] };
+
+const SIDDET_ADI: Record<KlinikUyari['siddet'], string> = { kontrendike: 'Kontrendike', ciddi: 'Ciddi', orta: 'Orta' };
 
 const DURUM_ADI = { yesil: 'Uygun', sari: 'Dikkat', kirmizi: 'Uygun değil' } as const;
 
@@ -228,6 +241,26 @@ function ReceteKontrol() {
                   gerekceDegisti={(v) => setGerekceler((g) => ({ ...g, [gerekceAnahtari(b)]: v }))}
                 />
               ))}
+              {!!kontrol.klinikUyarilar?.length && (
+                <div className="klinik-uyarilar">
+                  <h3>İlaç etkileşimleri (gönderimi kilitlemez)</h3>
+                  {kontrol.klinikUyarilar.map((u) => (
+                    <div key={u.kuralId + u.ilaclar.join('|')} className={`bulgu ${u.siddet === 'orta' ? 'sari' : 'kirmizi'}`}>
+                      <div className="bulgu-baslik">
+                        <strong>{SIDDET_ADI[u.siddet]}</strong>
+                        <span>
+                          {u.ilaclar[0]} + {u.ilaclar[1]}
+                          {u.gecmistenMi ? ' (biri hastanın yakın zamanda aldığı ilaç)' : ''}
+                        </span>
+                        {u.ornekKural && <span className="rozet sari">örnek kural</span>}
+                      </div>
+                      <p>{u.mesaj}</p>
+                      {u.oneri && <p>{u.oneri}</p>}
+                      <p className="soluk">Kaynak: {u.kaynak}</p>
+                    </div>
+                  ))}
+                </div>
+              )}
               <div className="eylemler">
                 <button className="gonder" onClick={gonder} disabled={!!kilit || mesgul}>
                   {kilit ? '🔒 ' : ''}Medula'ya gönder
