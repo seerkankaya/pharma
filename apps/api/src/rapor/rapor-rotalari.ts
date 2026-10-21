@@ -3,6 +3,7 @@ import type { CariDeposu } from '../cari/cari.js';
 import { eczaciGerekli } from '../oturum.js';
 import { gunAraligi } from '../stok/stok.js';
 import type { StokDeposu } from '../stok/stok-deposu.js';
+import type { KasaEtkisi } from '../gelir-gider/gelir-gider.js';
 import {
   GunZatenKapaliHatasi,
   kasaBeklentisi,
@@ -22,11 +23,25 @@ const gunSayisi = (bas: string, bit: string) => Math.round((Date.parse(bit) - Da
 /** Bir dönem raporu en çok bu kadar gün kapsar. */
 export const EN_UZUN_DONEM = 366;
 
-export function raporRotalari(app: FastifyInstance, stok: StokDeposu, cari: CariDeposu, gunSonu: GunSonuDeposu, bugun: () => string) {
+/** Günün satış ve tahsilat dışındaki kasa hareketleri (gelir-gider, nakit depo ödemesi). */
+export type GunlukKasaEtkisi = (eczaneId: string, gun: string) => Promise<KasaEtkisi>;
+
+export function raporRotalari(
+  app: FastifyInstance,
+  stok: StokDeposu,
+  cari: CariDeposu,
+  gunSonu: GunSonuDeposu,
+  bugun: () => string,
+  digerKasa?: GunlukKasaEtkisi,
+) {
   async function gunVerisi(eczaneId: string, gun: string) {
     const { baslangic, bitis } = gunAraligi(gun);
-    const [satislar, tahsilatlar] = await Promise.all([stok.satislar(eczaneId, baslangic, bitis), cari.tahsilatlar(eczaneId, baslangic, bitis)]);
-    return { satislar, tahsilatlar, kasa: kasaBeklentisi(satislar, tahsilatlar) };
+    const [satislar, tahsilatlar, diger] = await Promise.all([
+      stok.satislar(eczaneId, baslangic, bitis),
+      cari.tahsilatlar(eczaneId, baslangic, bitis),
+      digerKasa?.(eczaneId, gun),
+    ]);
+    return { satislar, tahsilatlar, kasa: kasaBeklentisi(satislar, tahsilatlar, diger) };
   }
 
   // Kâr ve maliyet bilgisi içerdiği için raporları yalnızca eczacı görür.

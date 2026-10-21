@@ -1,5 +1,6 @@
 import { icKdv, MIAD_UYARI_GUNU, miadiGecmis, type KdvOrani, type Parti, type Satis, type StokHareketi, type Urun } from '../stok/stok.js';
 import type { CariHareket } from '../cari/cari.js';
+import type { KasaEtkisi } from '../gelir-gider/gelir-gider.js';
 
 // Gün sonu ve raporlar. Hiçbiri yeni kayıt üretmez; satışlardan, stok hareketlerinden ve cari hareketlerden hesaplanır.
 // Maliyet, satılan partinin stoğa giriş maliyetidir (KDV hariç). Maliyeti girilmemiş partiler ayrıca sayılır,
@@ -98,13 +99,21 @@ export interface KasaBeklentisi {
   nakitTahsilatKurus: number;
   kartSatisKurus: number;
   kartTahsilatKurus: number;
-  /** Kasada olması gereken nakit: nakit satış + nakit tahsilat */
+  /** Gelir-gider kayıtlarından ve depo ödemelerinden gelen kasa hareketleri (bu modülden önceki kapanışlarda yok) */
+  nakitGelirKurus?: number;
+  nakitGiderKurus?: number;
+  kartGelirKurus?: number;
+  /** Kasada olması gereken nakit: nakit satış + nakit tahsilat + nakit gelir − nakit gider */
   beklenenNakitKurus: number;
-  /** POS'tan geçmesi gereken: kart satış + kart tahsilat */
+  /** POS'tan geçmesi gereken: kart satış + kart tahsilat + kartla alınan gelir */
   beklenenKartKurus: number;
 }
 
-export function kasaBeklentisi(satislar: Satis[], tahsilatlar: Pick<CariHareket, 'tutarKurus' | 'odemeTuru'>[]): KasaBeklentisi {
+export function kasaBeklentisi(
+  satislar: Satis[],
+  tahsilatlar: Pick<CariHareket, 'tutarKurus' | 'odemeTuru'>[],
+  diger: KasaEtkisi = { nakitGelirKurus: 0, nakitGiderKurus: 0, kartGelirKurus: 0 },
+): KasaBeklentisi {
   const satis = (t: string) => satislar.filter((s) => s.odemeTuru === t).reduce((a, s) => a + s.toplamKurus, 0);
   const tahsilat = (t: string) => tahsilatlar.filter((h) => h.odemeTuru === t).reduce((a, h) => a + h.tutarKurus, 0);
   const b = {
@@ -112,8 +121,13 @@ export function kasaBeklentisi(satislar: Satis[], tahsilatlar: Pick<CariHareket,
     nakitTahsilatKurus: tahsilat('nakit'),
     kartSatisKurus: satis('kart'),
     kartTahsilatKurus: tahsilat('kart'),
+    ...diger,
   };
-  return { ...b, beklenenNakitKurus: b.nakitSatisKurus + b.nakitTahsilatKurus, beklenenKartKurus: b.kartSatisKurus + b.kartTahsilatKurus };
+  return {
+    ...b,
+    beklenenNakitKurus: b.nakitSatisKurus + b.nakitTahsilatKurus + b.nakitGelirKurus - b.nakitGiderKurus,
+    beklenenKartKurus: b.kartSatisKurus + b.kartTahsilatKurus + b.kartGelirKurus,
+  };
 }
 
 export interface UrunSatisi {

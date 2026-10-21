@@ -12,7 +12,13 @@ export interface DepoBelgeleri {
   odemeler: BelgeDeposu<DepoOdemesi>;
 }
 
-export function depoRotalari(app: FastifyInstance, stok: StokDeposu, d: DepoBelgeleri, bugun: () => string) {
+export function depoRotalari(
+  app: FastifyInstance,
+  stok: StokDeposu,
+  d: DepoBelgeleri,
+  bugun: () => string,
+  gunKapaliMi: (eczaneId: string, gun: string) => Promise<boolean> = async () => false,
+) {
   // e-Fatura XML'ini alış faturası taslağına çevirir; hiçbir şey kaydetmez. e-Fatura dosyaları içlerindeki
   // gömülü görünüm şablonu yüzünden büyük olabilir.
   app.post<{ Body: { xml?: string } }>('/api/alis-faturalari/xml', { bodyLimit: 10 * 1024 * 1024 }, async (req, reply) => {
@@ -115,6 +121,9 @@ export function depoRotalari(app: FastifyInstance, stok: StokDeposu, d: DepoBelg
     const hatalar = odemeDogrula(req.body, bugun());
     if (hatalar.length) return reply.code(400).send({ hata: 'Ödeme geçersiz', hatalar });
     const b = req.body;
+    // Nakit ödeme günün kasasından çıkar; kapanmış güne yazılamaz.
+    if (b.odemeTuru === 'nakit' && (await gunKapaliMi(eczaneId, b.tarih!)))
+      return reply.code(409).send({ hata: `${b.tarih} günü kapatılmış; nakit ödeme o güne girilemez` });
     const odeme: DepoOdemesi = {
       id: randomUUID(),
       tedarikciId: tedarikci.id,
